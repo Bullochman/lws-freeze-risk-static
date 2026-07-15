@@ -57,6 +57,25 @@
         <span class="alert-count" id="alertCount"></span>
       </div>
 
+      <!-- season-aware freeze-mechanics summary panel ------------
+           Populated from LWSSeasons.getMechanicsConfig() at boot.
+           Hidden for seasons that don't have blizzard_schedule. -->
+      <div id="freezeMechPanel" style="background:#0d1424;border:1px solid rgba(201,169,97,0.15);border-radius:8px;padding:10px 14px;margin:10px 0;font-family:system-ui,-apple-system,sans-serif;font-size:13px;color:#a8b0c0;display:none">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px">
+          <span style="color:#c9a961;font-weight:600;letter-spacing:.06em;font-size:11px" id="fmpSeasonLabel">SEASON —</span>
+          <span id="fmpThreshold">Freeze threshold: — °C for — min</span>
+          <span style="flex:1"></span>
+          <span id="fmpWeek" style="color:#7a8290;font-size:11px">Wk —</span>
+        </div>
+        <div id="fmpBlizzardStrip" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"></div>
+      </div>
+
+      <!-- rendered when the current season has no blizzard mechanics -->
+      <div id="noFreezeNotice" style="background:#12192c;border:1px dashed rgba(255,255,255,0.10);border-radius:8px;padding:20px;margin:14px 0;text-align:center;color:#a8b0c0;display:none">
+        <div style="font-size:15px;font-weight:500;margin-bottom:4px" id="noFreezeTitle" data-i18n="noFreezeTitle">No freeze mechanics this season</div>
+        <div style="font-size:12px;color:#7a8290" id="noFreezeBody" data-i18n="noFreezeBody">This dashboard is Season-2-specific (Polar Storm). Switch back to Season 2 via the warzone selector to use it.</div>
+      </div>
+
       <!-- toolbar --------------------------------------------- -->
       <div class="toolbar" id="toolbar">
         <button class="primary" id="btnDemo" data-i18n="toolLoadDemo">Load demo data</button>
@@ -147,19 +166,46 @@
      All Season 2 numbers cite kb/06-season-2-frozen.md inline.
      ============================================================ */
 
-  // ---- KB-sourced constants ------------------------------------------------
+  // ---- Season-aware config -------------------------------------------------
+  //
+  // All freeze-mechanics numbers were formerly hardcoded to Season 2 (Polar Storm).
+  // They're now hydrated from LWSSeasons.getMechanicsConfig() at boot and re-hydrated
+  // whenever `lws:season-changed` fires (warzone or override switch). Seasons that
+  // don't publish a `blizzard_schedule` (S1 past, S3/S5 non-thermal, S4 Blood Night
+  // is a different mechanic, S6 jungle) fall through to a "no freeze mechanics"
+  // notice — see NO_FREEZE_MECHANICS flag + #noFreezeNotice panel.
+  //
+  // Defaults below mirror the KB: [[06-season-2-frozen]] values (freeze < -20 °C
+  // for 5 continuous minutes; 7-band ambient -15→-80 °C). They're used only when
+  // LWSSeasons is unreachable (local dev without seasons.json).
 
-  // KB: [[06-season-2-frozen]] "Freeze mechanics" table — freeze trigger < -20 °C for 5 continuous minutes
-  const FREEZE_THRESHOLD_C = -20;
-  const FREEZE_COUNTDOWN_S = 5 * 60;  // 5 minutes
+  const SEASON_CFG = {
+    seasonId: 's2-polar-storm',
+    seasonName: 'Season 2: Polar Storm',
+    week: 1,
+    freezeThresholdC: -20,               // KB Season 2
+    freezeDurationMin: 5,                // KB Season 2 (5 continuous min)
+    ambientBandsC: [-15, -30, -40, -50, -60, -70, -80],
+    blizzardSchedule: [
+      { from_week: 1, to_week: 2, drop_c: -15, severity: 'warning' },
+      { from_week: 3, to_week: 3, drop_c: -30, severity: 'danger' },
+      { from_week: 4, to_week: 8, drop_c: -50, severity: 'critical' },
+    ],
+    hasFreezeMechanics: true,
+  };
 
-  // KB: [[06-season-2-frozen]] "Temperature zones (base ambient)" — 7 concentric zones from -15 °C outer
-  // to -80 °C center. Approx -15 °C per zone step. Map ambient is a function of Chebyshev distance
-  // from the map center; using a 1000x1000 warzone map convention centered at (500, 500).
-  const AMBIENT_ZONES_C = [-15, -30, -40, -50, -60, -70, -80];
-  // Zone width in tiles — 7 zones over ~500 tiles from center to corner = ~71 tiles per band.
-  // This is an approximation; the KB open question #1 flags exact per-tile mapping as ungazetted.
-  const ZONE_WIDTH_TILES = 71;  // TODO: KB gap — no per-tile authoritative map published
+  // Read-through accessors so the rest of the file doesn't care where these came from.
+  function freezeThresholdC() { return SEASON_CFG.freezeThresholdC; }
+  function freezeCountdownS() { return SEASON_CFG.freezeDurationMin * 60; }
+  function ambientBandsC()   { return SEASON_CFG.ambientBandsC; }
+
+  // Zone width in tiles derived from ambient-band count — N bands over 500 tiles
+  // from center to edge. KB open question #1 flags the exact per-tile mapping as
+  // ungazetted; this is a best-effort approximation that scales with band count.
+  function zoneWidthTiles() {
+    var bands = ambientBandsC();
+    return bands && bands.length ? Math.floor(500 / bands.length) : 71;
+  }
 
   // KB: [[06-season-2-frozen]] "High-Heat Furnace" heat-output curve
   //   L1  = +5.5 °C activation / +8   °C overdrive
@@ -202,16 +248,19 @@
 
   function ambientFromCoord(x, y) {
     // Chebyshev distance from map center (500, 500), converted to zone index.
+    const bands = ambientBandsC();
+    if (!bands || !bands.length) return 20;   // no-freeze season → benign ambient
+    const width = zoneWidthTiles();
     const dx = Math.abs(x - 500);
     const dy = Math.abs(y - 500);
     const dist = Math.max(dx, dy);
-    // corners are zone 0 (outer, -15 °C); center is zone 6 (-80 °C).
-    // 500 tiles from center to edge → 500 / 71 ≈ 7 bands. Clamp reverse.
+    // corners are zone 0 (outer band); center is zone (bands.length-1).
     const outer_dist = 500;
-    const zone_from_outer = Math.max(0, Math.min(6,
-      Math.floor((outer_dist - dist) / ZONE_WIDTH_TILES)
+    const maxIdx = bands.length - 1;
+    const zone_from_outer = Math.max(0, Math.min(maxIdx,
+      Math.floor((outer_dist - dist) / width)
     ));
-    return AMBIENT_ZONES_C[zone_from_outer];
+    return bands[zone_from_outer];
   }
 
   function computeMemberState(m) {
@@ -235,15 +284,16 @@
         : HHF_COAL_PER_MIN_APPROX.normal(m.furnace_level);
     const coalHours = burnPerMin > 0 ? m.coal_stockpile / (burnPerMin * 60) : Infinity;
 
-    // Status buckets:
+    // Status buckets — thresholds derived from freezeThresholdC() (Season 2: -20 °C).
     //   safe:      current > +10 °C
-    //   danger:    -10 to +10 °C (freeze possible if blizzard hits)
-    //   imminent:  -20 to -10 °C — freeze countdown may already be ticking
-    //   frozen:    <= -20 °C — assumed already in Frozen state (KB: 5-min continuous)
+    //   danger:    threshold+10 .. +10 °C  (freeze possible if blizzard hits)
+    //   imminent:  threshold .. threshold+10 °C — freeze countdown may already be ticking
+    //   frozen:    <= threshold — assumed already in Frozen state (KB Season 2: 5-min continuous)
+    const T = freezeThresholdC();
     let status = 'safe';
-    if (currentTemp <= FREEZE_THRESHOLD_C) status = 'frozen';
-    else if (currentTemp < -10) status = 'imminent';
-    else if (currentTemp < 10) status = 'danger';
+    if (currentTemp <= T)         status = 'frozen';
+    else if (currentTemp < T + 10) status = 'imminent';
+    else if (currentTemp < 10)     status = 'danger';
 
     // Freeze countdown — v1 heuristic: for imminent members, assume 3 min remaining;
     // for danger members, no active countdown (they're above -20). Frozen = 0.
@@ -284,9 +334,10 @@
     return Math.floor(s / 60) + ' ' + window.I18N[LANG].unitMin;
   }
   function tempClass(t) {
-    if (t <= -20) return 'temp-frozen';
-    if (t < -10)  return 'temp-imminent';
-    if (t < 10)   return 'temp-danger';
+    const T = freezeThresholdC();
+    if (t <= T)         return 'temp-frozen';
+    if (t < T + 10)     return 'temp-imminent';
+    if (t < 10)         return 'temp-danger';
     return 'temp-safe';
   }
   function coalClass(h) {
@@ -500,7 +551,11 @@
     // Big alert headline
     ctx.font = '400 16px system-ui, sans-serif';
     ctx.fillStyle = C.textMut; ctx.textAlign = 'center';
-    ctx.fillText('Season 2 · Freeze Threshold -20°C for 5 continuous minutes', W / 2, 130);
+    ctx.fillText(
+      SEASON_CFG.seasonName + ' · Freeze Threshold ' +
+        freezeThresholdC() + '°C for ' + SEASON_CFG.freezeDurationMin + ' continuous minutes',
+      W / 2, 130
+    );
     const alertColor = frozen > 0 ? C.frozen : (imminent > 0 ? C.imminent : (danger > 0 ? C.danger : C.safe));
     ctx.fillStyle = alertColor; ctx.font = '600 64px ui-monospace, SFMono-Regular, Menlo, monospace';
     let headline;
@@ -589,7 +644,8 @@
       // Base temp
       ctx.textAlign = 'right';
       const tempC = r.s.currentTemp;
-      ctx.fillStyle = tempC <= -20 ? C.frozen : (tempC < -10 ? C.imminent : (tempC < 10 ? C.danger : C.safe));
+      const Tp = freezeThresholdC();
+      ctx.fillStyle = tempC <= Tp ? C.frozen : (tempC < Tp + 10 ? C.imminent : (tempC < 10 ? C.danger : C.safe));
       ctx.font = '600 13px ui-monospace, monospace';
       ctx.fillText(tempC.toFixed(1) + '°C', cols[3].x + cols[3].w, y);
       // Furnace mode
@@ -622,8 +678,11 @@
     // Footer
     ctx.fillStyle = C.textMut; ctx.font = '400 12px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('r5tools.io · Freeze Risk Dashboard · KB: [[06-season-2-frozen]] -20°C / 5-min freeze threshold',
-                 W / 2, H - 30);
+    ctx.fillText(
+      'r5tools.io · Freeze Risk Dashboard · ' + SEASON_CFG.seasonName + ' · ' +
+        freezeThresholdC() + '°C / ' + SEASON_CFG.freezeDurationMin + '-min freeze threshold',
+      W / 2, H - 30
+    );
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 
     canvas.toBlob(blob => {
@@ -723,6 +782,116 @@
       render();
     }
   }).catch(() => {});
+
+  // ---- Season hydration --------------------------------------------------
+  //
+  // Read the current warzone → season → mechanics_config from LWSSeasons and
+  // rewire SEASON_CFG. When the season has no `blizzard_schedule`, hide the
+  // main dashboard and show the "no freeze mechanics" notice. Re-hydrate on
+  // every `lws:season-changed` event dispatched by lib.js.
+
+  function severityColor(sev) {
+    return { warning: '#e6cf7a', danger: '#e0a06a', critical: '#e08a8a' }[sev] || '#7a8290';
+  }
+
+  function renderFreezeMechPanel(ctx, cfg) {
+    const dict = window.I18N[LANG] || window.I18N.en;
+    const panel = document.getElementById('freezeMechPanel');
+    const notice = document.getElementById('noFreezeNotice');
+    const mainCard = document.querySelector('#main-app .card');
+    const alertBanner = document.getElementById('alertBanner');
+    const toolbar = document.getElementById('toolbar');
+
+    if (!SEASON_CFG.hasFreezeMechanics) {
+      panel.style.display = 'none';
+      notice.style.display = '';
+      if (mainCard) mainCard.style.display = 'none';
+      if (alertBanner) alertBanner.classList.add('hidden');
+      if (toolbar) toolbar.style.opacity = '0.4';
+      return;
+    }
+    if (mainCard) mainCard.style.display = '';
+    if (toolbar) toolbar.style.opacity = '';
+    notice.style.display = 'none';
+    panel.style.display = '';
+
+    const seasonLabel = (ctx && ctx.season && ctx.season.name)
+      ? (ctx.season.name[LANG] || ctx.season.name.en || SEASON_CFG.seasonName)
+      : SEASON_CFG.seasonName;
+    document.getElementById('fmpSeasonLabel').textContent = (seasonLabel || '').toUpperCase();
+    document.getElementById('fmpThreshold').textContent =
+      (dict.mechThreshold || 'Freeze threshold') + ': ' +
+      freezeThresholdC() + ' °C · ' + SEASON_CFG.freezeDurationMin + ' ' + (dict.unitMin || 'min');
+    document.getElementById('fmpWeek').textContent =
+      (dict.weekLabel || 'Wk') + ' ' + SEASON_CFG.week;
+
+    // Blizzard schedule strip — one pill per bracket, current week highlighted.
+    const strip = document.getElementById('fmpBlizzardStrip');
+    strip.innerHTML = '';
+    (SEASON_CFG.blizzardSchedule || []).forEach(function (b) {
+      const active = SEASON_CFG.week >= b.from_week && SEASON_CFG.week <= b.to_week;
+      const color = severityColor(b.severity);
+      const pill = document.createElement('span');
+      const range = b.from_week === b.to_week ? ('W' + b.from_week) : ('W' + b.from_week + '–' + b.to_week);
+      pill.style.cssText =
+        'padding:3px 10px;border-radius:12px;font-size:11px;font-family:ui-monospace,monospace;' +
+        'border:1px solid ' + color + ';' +
+        'color:' + (active ? '#0a0e1a' : color) + ';' +
+        'background:' + (active ? color : 'transparent') + ';' +
+        'font-weight:' + (active ? '700' : '500');
+      pill.textContent = range + '  ' + (b.drop_c > 0 ? '+' : '') + b.drop_c + '°C';
+      pill.title = b.severity + (active ? ' (current week)' : '');
+      strip.appendChild(pill);
+    });
+    if (!SEASON_CFG.blizzardSchedule || !SEASON_CFG.blizzardSchedule.length) {
+      const stub = document.createElement('span');
+      stub.style.cssText = 'color:#7a8290;font-size:11px;font-style:italic';
+      stub.textContent = dict.noBlizzardsScheduled || 'No blizzards on the schedule';
+      strip.appendChild(stub);
+    }
+  }
+
+  function hydrateSeason() {
+    if (!window.LWSSeasons || typeof LWSSeasons.resolve !== 'function') {
+      // LWSSeasons not loaded (offline / local hack) — defaults already in SEASON_CFG.
+      SEASON_CFG.hasFreezeMechanics = true;
+      renderFreezeMechPanel(null, {});
+      return;
+    }
+    LWSSeasons.resolve().then(function (ctx) {
+      const cfg = (ctx.season && ctx.season.mechanics_config) || {};
+      const sched = cfg.blizzard_schedule || null;
+      SEASON_CFG.seasonId = ctx.season_id;
+      SEASON_CFG.seasonName = (ctx.season && ctx.season.name && (ctx.season.name.en || ctx.season.name[LANG])) || ctx.season_id;
+      SEASON_CFG.week = ctx.week || 1;
+      SEASON_CFG.hasFreezeMechanics = !!(sched && sched.length);
+      if (SEASON_CFG.hasFreezeMechanics) {
+        SEASON_CFG.freezeThresholdC  = (typeof cfg.freeze_threshold_c === 'number') ? cfg.freeze_threshold_c : SEASON_CFG.freezeThresholdC;
+        SEASON_CFG.freezeDurationMin = (typeof cfg.freeze_duration_min === 'number') ? cfg.freeze_duration_min : SEASON_CFG.freezeDurationMin;
+        SEASON_CFG.ambientBandsC     = (cfg.ambient_bands_c && cfg.ambient_bands_c.length) ? cfg.ambient_bands_c : SEASON_CFG.ambientBandsC;
+        SEASON_CFG.blizzardSchedule  = sched;
+      } else {
+        SEASON_CFG.blizzardSchedule = [];
+      }
+      renderFreezeMechPanel(ctx, cfg);
+      render();
+    }).catch(function (e) {
+      console.warn('[LWS Freeze Risk] LWSSeasons.resolve failed, using S2 defaults:', e);
+      SEASON_CFG.hasFreezeMechanics = true;
+      renderFreezeMechPanel(null, {});
+      render();
+    });
+  }
+
+  // Fire on boot + whenever the warzone/season selector changes.
+  window.addEventListener('lws:season-changed', hydrateSeason);
+  window.addEventListener('lws:warzone-changed', hydrateSeason);
+  // Also trigger on DOMContentLoaded fallback in case lib.js loads after this block.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(hydrateSeason, 0); });
+  } else {
+    setTimeout(hydrateSeason, 0);
+  }
   </script>
 
   <script src="static/roster-picker.js" defer></script>

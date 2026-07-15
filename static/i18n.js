@@ -86,6 +86,13 @@ window.I18N = {
     kbFreezeThreshold: "Frozen state = base temp < -20 °C for 5 continuous minutes (KB: Season 2)",
     kbOverdriveBurn: "Overdrive burns ~4× Normal coal rate (KB: Season 2, High-Heat Furnace)",
 
+    // season-aware freeze-mechanics panel
+    mechThreshold: "Freeze threshold",
+    weekLabel: "Wk",
+    noBlizzardsScheduled: "No blizzards on the schedule",
+    noFreezeTitle: "No freeze mechanics this season",
+    noFreezeBody: "This dashboard is Season-2-specific (Polar Storm). Switch back to Season 2 via the warzone selector to use it.",
+
     // footer
     footerCred: "Powered by the LWS Knowledge Base",
     footerRelatedHead: "Related tools:",
@@ -170,6 +177,13 @@ window.I18N = {
     // KB attribution notes shown in tooltips
     kbFreezeThreshold: "냉동 상태 = 기지 온도 < -20 °C 5분 연속 (KB: 시즌 2)",
     kbOverdriveBurn: "과부하는 정상 대비 약 4배 석탄 소모 (KB: 시즌 2, 고열 화로)",
+
+    // season-aware freeze-mechanics panel
+    mechThreshold: "동결 임계값",
+    weekLabel: "주차",
+    noBlizzardsScheduled: "예정된 블리자드 없음",
+    noFreezeTitle: "이번 시즌은 동결 메커니즘이 없습니다",
+    noFreezeBody: "이 대시보드는 시즌 2 (폴라 스톰) 전용입니다. 워존 선택기를 통해 시즌 2로 전환하세요.",
 
     // footer
     footerCred: "LWS 지식 베이스 기반",
