@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>LWS Freeze Risk Dashboard · 동결 위험 대시보드</title>
+  <meta name="description" content="Live per-member freeze-risk board for Last War: Survival Season 2 (Polar Storm). Which alliance member freezes in the next 5 minutes? Whose coal runs out before the next blizzard?" />
+  <link rel="stylesheet" href="static/styles.css" />
+</head>
+<body>
+  <!-- ============================================================
+       LWS Access Codes gate — real, not stubbed.
+       When the access-codes service is reachable, this overlays
+       #main-app with an "enter code" panel until the visitor has a
+       valid lws_unlock_code cookie. When the service is unreachable
+       (local dev, no internet), the script tag fails and the gate
+       degrades to open — expected behavior for local hacking.
+       ============================================================ -->
+  <script src="https://access-codes.r5tools.io/lib.js"
+          onerror="console.warn('LWS Access Codes lib unreachable — running in open mode. Add access-codes.r5tools.io CORS whitelist for prod.')"></script>
+
+  <div id="main-app">
+    <div class="wrap">
+
+      <header>
+        <div>
+          <div class="brand">
+            <span data-i18n="brand">R5TOOLS.IO</span>
+            <span class="brand-sub" data-i18n="brandSub">LWS Suite</span>
+          </div>
+          <h1 data-i18n="title">Freeze Risk Dashboard</h1>
+          <div class="subtitle" data-i18n="subtitle">Season 2 (Polar Storm) — live per-member freeze-risk board</div>
+        </div>
+        <button class="lang-toggle" id="langToggle" data-i18n="langToggle">한국어</button>
+      </header>
+
+      <!-- alert banner ----------------------------------------- -->
+      <div class="alert-banner calm hidden" id="alertBanner" role="status" aria-live="polite">
+        <span id="alertText" data-i18n="alertCalm">All members safe</span>
+        <span class="alert-count" id="alertCount"></span>
+      </div>
+
+      <!-- toolbar --------------------------------------------- -->
+      <div class="toolbar" id="toolbar">
+        <button class="primary" id="btnDemo" data-i18n="toolLoadDemo">Load demo data</button>
+        <button id="btnImport" data-i18n="toolImportCsv">Import roster CSV</button>
+        <input type="file" id="csvInput" accept=".csv,text/csv" style="display:none" />
+
+        <span class="grow"></span>
+
+        <label data-i18n="toolFilterBy">Filter</label>
+        <select id="filterSelect">
+          <option value="all" data-i18n="filterAll">All</option>
+          <option value="frozen" data-i18n="filterFrozen">Frozen only</option>
+          <option value="atrisk" data-i18n="filterAtRisk">At risk</option>
+          <option value="safe" data-i18n="filterSafe">Safe only</option>
+        </select>
+
+        <label data-i18n="toolSortBy">Sort by</label>
+        <select id="sortSelect">
+          <option value="status" data-i18n="sortStatus">Status (worst first)</option>
+          <option value="coal" data-i18n="sortCoal">Coal hours (lowest first)</option>
+          <option value="rank" data-i18n="sortRank">Rank (R5 first)</option>
+          <option value="name" data-i18n="sortName">Name</option>
+        </select>
+
+        <button id="btnExportPng" data-i18n="toolExportPng">Export PNG (Discord)</button>
+        <button id="btnExportCsv" data-i18n="toolExportCsv">Export CSV</button>
+        <button id="btnExportJson" data-i18n="toolExportJson">Export JSON</button>
+      </div>
+
+      <!-- grid / empty state ---------------------------------- -->
+      <div class="card">
+        <div class="card-header">
+          <span id="cardHeaderStats">—</span>
+          <span id="cardHeaderTs">—</span>
+        </div>
+        <table class="freeze-grid" id="grid">
+          <thead>
+            <tr>
+              <th data-sort-key="name" data-i18n="colName">Member</th>
+              <th data-sort-key="rank" data-i18n="colRank">Rank</th>
+              <th class="hide-mobile" data-sort-key="coord" data-i18n="colCoord">Coord</th>
+              <th data-sort-key="temp" data-i18n="colTemp">Base Temp</th>
+              <th data-sort-key="countdown" data-i18n="colCountdown">Freeze in</th>
+              <th data-sort-key="coal" data-i18n="colCoal">Coal hrs</th>
+              <th class="hide-mobile" data-sort-key="furnace" data-i18n="colFurnace">Furnace</th>
+              <th data-sort-key="status" data-i18n="colStatus">Status</th>
+              <th class="hide-mobile" data-i18n="colActions">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="gridBody"></tbody>
+        </table>
+        <div class="empty-state" id="emptyState">
+          <div data-i18n="emptyTitle">No roster loaded</div>
+          <div class="empty-cta" data-i18n="emptyBody">Import your alliance's roster CSV or click Load demo data to see the dashboard populate.</div>
+        </div>
+      </div>
+
+      <footer>
+        <div data-i18n="footerCred">Powered by the LWS Knowledge Base</div>
+        <div class="related-tools">
+          <span data-i18n="footerRelatedHead">Related tools:</span>
+          <a href="https://web-production-46ee1.up.railway.app/" target="_blank" data-i18n="footerRelHive">Hive Planner</a>·
+          <a href="#" data-i18n="footerRelHeat">Heat Simulator</a>·
+          <a href="#" data-i18n="footerRelCoal">Coal Burn Calculator</a>·
+          <a href="https://access-codes.r5tools.io/" target="_blank" data-i18n="footerRelAccess">Access Codes</a>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- i18n dictionary + language helpers ---------------------- -->
+  <script src="static/fake-server.js"></script>
+    <script src="static/i18n.js"></script>
+
+  <!-- Apply the LWS Access Codes gate. If lib.js failed to load
+       (local dev), LWSAccessCodes is undefined and we skip.       -->
+  <script>
+    if (window.LWSAccessCodes && typeof LWSAccessCodes.gate === 'function') {
+      LWSAccessCodes.gate('main-app');
+    }
+  </script>
+
+  <!-- Main app logic ------------------------------------------- -->
+  <script>
+  /* ============================================================
+     LWS Freeze Risk Dashboard — client logic
+     All Season 2 numbers cite kb/06-season-2-frozen.md inline.
+     ============================================================ */
+
+  // ---- KB-sourced constants ------------------------------------------------
+
+  // KB: [[06-season-2-frozen]] "Freeze mechanics" table — freeze trigger < -20 °C for 5 continuous minutes
+  const FREEZE_THRESHOLD_C = -20;
+  const FREEZE_COUNTDOWN_S = 5 * 60;  // 5 minutes
+
+  // KB: [[06-season-2-frozen]] "Temperature zones (base ambient)" — 7 concentric zones from -15 °C outer
+  // to -80 °C center. Approx -15 °C per zone step. Map ambient is a function of Chebyshev distance
+  // from the map center; using a 1000x1000 warzone map convention centered at (500, 500).
+  const AMBIENT_ZONES_C = [-15, -30, -40, -50, -60, -70, -80];
+  // Zone width in tiles — 7 zones over ~500 tiles from center to corner = ~71 tiles per band.
+  // This is an approximation; the KB open question #1 flags exact per-tile mapping as ungazetted.
+  const ZONE_WIDTH_TILES = 71;  // TODO: KB gap — no per-tile authoritative map published
+
+  // KB: [[06-season-2-frozen]] "High-Heat Furnace" heat-output curve
+  //   L1  = +5.5 °C activation / +8   °C overdrive
+  //   L19 = +14.5 °C            / +21.5 °C
+  //   L30 = +20   °C            / +30   °C
+  // Interpolate linearly between L1 and L30 as a reasonable approximation;
+  // the KB does not publish every intermediate level.
+  function hhfHeat(level, mode) {
+    if (!level || level < 1 || mode === 'off') return 0;
+    const L = Math.max(1, Math.min(30, level));
+    // linear from L1..L30
+    const normal    = 5.5 + (20 - 5.5)  * (L - 1) / 29;   // KB: L1 +5.5, L30 +20
+    const overdrive = 8   + (30 - 8)    * (L - 1) / 29;   // KB: L1 +8,   L30 +30
+    return mode === 'overdrive' ? overdrive : normal;
+  }
+
+  // KB: [[06-season-2-frozen]] "Alliance Furnace (shared, level 20 max)" —
+  //   L1 = +3 °C normal / +6 °C overdrive; L20 = +12.5 / +25.
+  //   Radius by level unpublished (open question #1). v1 assumes flag "in_range" is user-provided.
+  function afHeat(level, mode) {
+    if (!level || level < 1 || mode === 'off') return 0;
+    const L = Math.max(1, Math.min(20, level));
+    const normal    = 3 + (12.5 - 3) * (L - 1) / 19;
+    const overdrive = 6 + (25   - 6) * (L - 1) / 19;
+    return mode === 'overdrive' ? overdrive : normal;
+  }
+
+  // KB: [[06-season-2-frozen]] "Alliance Furnace" — 1,440 coal/min normal, 5,760 coal/min overdrive at L20
+  //   (~4x overdrive ratio). Personal HHF coal-per-minute by level is not published — we approximate
+  //   from the ratio to L20 AF, scaled by L. v1 UI shows hours_remaining derived from these estimates
+  //   and prominently flags the estimation.
+  const AF_COAL_PER_MIN_L20 = { normal: 1440, overdrive: 5760 };
+  const HHF_COAL_PER_MIN_APPROX = {
+    // TODO: KB gap — no per-level HHF coal-per-min table exists. Rough estimate: personal furnace
+    // burns roughly 1/6 of L20 AF at max level. Scale linearly. Overdrive is ~4x normal (KB confirmed).
+    // Real numbers to be filled in when an in-game screenshot survey is done.
+    normal:    (level) => (240 * Math.max(1, Math.min(30, level))) / 30,   // L30 ≈ 240 coal/min
+    overdrive: (level) => (960 * Math.max(1, Math.min(30, level))) / 30,   // L30 ≈ 960 coal/min (~4x)
+  };
+
+  function ambientFromCoord(x, y) {
+    // Chebyshev distance from map center (500, 500), converted to zone index.
+    const dx = Math.abs(x - 500);
+    const dy = Math.abs(y - 500);
+    const dist = Math.max(dx, dy);
+    // corners are zone 0 (outer, -15 °C); center is zone 6 (-80 °C).
+    // 500 tiles from center to edge → 500 / 71 ≈ 7 bands. Clamp reverse.
+    const outer_dist = 500;
+    const zone_from_outer = Math.max(0, Math.min(6,
+      Math.floor((outer_dist - dist) / ZONE_WIDTH_TILES)
+    ));
+    return AMBIENT_ZONES_C[zone_from_outer];
+  }
+
+  function computeMemberState(m) {
+    const ambient = ambientFromCoord(m.coord_x, m.coord_y);
+    const hhf = hhfHeat(m.furnace_level, m.furnace_mode);
+    // Alliance Furnace heat only applies if the member is in range.
+    // v1: user-provided boolean. v2: derive from AF coord + radius.
+    const af_contribution = m.in_alliance_furnace_range
+      ? afHeat(20, 'normal')  // TODO: pull actual AF level + mode from a UI state slot
+      : 0;
+    const city = m.city_heat_bonus || 0;   // KB: L1 = +5, L6 = +60
+    const research = m.research_bonus || 0; // KB: Tower of Victory +5 (cap L3), Intensive Overload +6, Village Station +5
+
+    const currentTemp = ambient + hhf + af_contribution + city + research;
+
+    // Coal hours remaining — divides stockpile by current burn rate.
+    const burnPerMin =
+      m.furnace_mode === 'off' ? 0 :
+      m.furnace_mode === 'overdrive'
+        ? HHF_COAL_PER_MIN_APPROX.overdrive(m.furnace_level)
+        : HHF_COAL_PER_MIN_APPROX.normal(m.furnace_level);
+    const coalHours = burnPerMin > 0 ? m.coal_stockpile / (burnPerMin * 60) : Infinity;
+
+    // Status buckets:
+    //   safe:      current > +10 °C
+    //   danger:    -10 to +10 °C (freeze possible if blizzard hits)
+    //   imminent:  -20 to -10 °C — freeze countdown may already be ticking
+    //   frozen:    <= -20 °C — assumed already in Frozen state (KB: 5-min continuous)
+    let status = 'safe';
+    if (currentTemp <= FREEZE_THRESHOLD_C) status = 'frozen';
+    else if (currentTemp < -10) status = 'imminent';
+    else if (currentTemp < 10) status = 'danger';
+
+    // Freeze countdown — v1 heuristic: for imminent members, assume 3 min remaining;
+    // for danger members, no active countdown (they're above -20). Frozen = 0.
+    // v2 will track actual per-second temp history to compute the real 5-min countdown.
+    let countdownS = null;
+    if (status === 'frozen') countdownS = 0;
+    else if (status === 'imminent') countdownS = 3 * 60;
+
+    return { ambient, hhf, af_contribution, city, research, currentTemp, coalHours, burnPerMin, status, countdownS };
+  }
+
+  // ---- UI state ------------------------------------------------------------
+
+  let LANG = window.i18nDetectLang();
+  let ROSTER = [];
+  let SORT = 'status';
+  let FILTER = 'all';
+
+  // ---- rendering -----------------------------------------------------------
+
+  function statusRank(s) {
+    return { frozen: 0, imminent: 1, danger: 2, safe: 3 }[s];
+  }
+  function rankOrder(r) {
+    return { R5: 0, R4: 1, R3: 2, R2: 3, R1: 4 }[r] ?? 5;
+  }
+  function fmtCoal(hours) {
+    if (!isFinite(hours) || hours === Infinity) return '∞';
+    if (hours <= 0) return window.I18N[LANG].coalDepleted;
+    if (hours < 1) return (hours * 60).toFixed(0) + ' ' + window.I18N[LANG].unitMin;
+    if (hours < 100) return hours.toFixed(1) + ' ' + window.I18N[LANG].unitHr;
+    return Math.round(hours) + ' ' + window.I18N[LANG].unitHr;
+  }
+  function fmtCountdown(s) {
+    if (s === null) return '—';
+    if (s <= 0) return window.I18N[LANG].freezeNow;
+    if (s < 60) return s + ' ' + window.I18N[LANG].unitSec;
+    return Math.floor(s / 60) + ' ' + window.I18N[LANG].unitMin;
+  }
+  function tempClass(t) {
+    if (t <= -20) return 'temp-frozen';
+    if (t < -10)  return 'temp-imminent';
+    if (t < 10)   return 'temp-danger';
+    return 'temp-safe';
+  }
+  function coalClass(h) {
+    if (!isFinite(h)) return '';
+    if (h < 3)  return 'coal-hours crit';
+    if (h < 12) return 'coal-hours low';
+    return '';
+  }
+  function nameFor(m) {
+    // KR members get their KR display name in KR mode; falls back to EN.
+    if (LANG === 'ko' && m.name_kr) return m.name_kr;
+    return m.name_en || m.name || '?';
+  }
+
+  function render() {
+    const dict = window.I18N[LANG];
+    const body = document.getElementById('gridBody');
+    const empty = document.getElementById('emptyState');
+
+    if (!ROSTER.length) {
+      body.innerHTML = '';
+      empty.style.display = '';
+      document.getElementById('alertBanner').classList.add('hidden');
+      document.getElementById('cardHeaderStats').textContent = '—';
+      document.getElementById('cardHeaderTs').textContent = '—';
+      return;
+    }
+    empty.style.display = 'none';
+
+    // enrich each member with computed state, then filter + sort
+    const rows = ROSTER.map(m => ({ m, s: computeMemberState(m) }));
+
+    const filtered = rows.filter(({ s }) => {
+      if (FILTER === 'all')    return true;
+      if (FILTER === 'frozen') return s.status === 'frozen';
+      if (FILTER === 'atrisk') return s.status === 'imminent' || s.status === 'danger';
+      if (FILTER === 'safe')   return s.status === 'safe';
+      return true;
+    });
+
+    filtered.sort((a, b) => {
+      if (SORT === 'status') return statusRank(a.s.status) - statusRank(b.s.status);
+      if (SORT === 'coal')   return a.s.coalHours - b.s.coalHours;
+      if (SORT === 'rank')   return rankOrder(a.m.rank) - rankOrder(b.m.rank);
+      if (SORT === 'name')   return nameFor(a.m).localeCompare(nameFor(b.m));
+      return 0;
+    });
+
+    // alert banner
+    const frozenCount   = rows.filter(r => r.s.status === 'frozen').length;
+    const imminentCount = rows.filter(r => r.s.status === 'imminent').length;
+    const dangerCount   = rows.filter(r => r.s.status === 'danger').length;
+    const banner = document.getElementById('alertBanner');
+    const bannerText = document.getElementById('alertText');
+    const bannerCount = document.getElementById('alertCount');
+    banner.classList.remove('hidden', 'calm', 'warn', 'critical');
+    if (frozenCount > 0) {
+      banner.classList.add('critical');
+      bannerText.textContent = dict.alertFrozenPre + dict.alertFrozenPost;
+      bannerCount.textContent = frozenCount;
+    } else if (imminentCount > 0) {
+      banner.classList.add('critical');
+      bannerText.textContent = dict.alertCriticalPre + dict.alertCriticalPost;
+      bannerCount.textContent = imminentCount;
+    } else if (dangerCount > 0) {
+      banner.classList.add('warn');
+      bannerText.textContent = dict.alertWarnPre + dict.alertWarnPost;
+      bannerCount.textContent = dangerCount;
+    } else {
+      banner.classList.add('calm');
+      bannerText.textContent = dict.alertCalm;
+      bannerCount.textContent = '';
+    }
+
+    // grid rows
+    body.innerHTML = filtered.map(({ m, s }) => {
+      const modeClass = 'mode-' + (m.furnace_mode || 'off');
+      const modeKey = 'mode' + (m.furnace_mode || 'off').charAt(0).toUpperCase() + (m.furnace_mode || 'off').slice(1);
+      return `
+        <tr class="rank-${m.rank}">
+          <td class="name">${escapeHtml(nameFor(m))}</td>
+          <td class="rank">${m.rank}</td>
+          <td class="coord hide-mobile">${m.coord_x},${m.coord_y}</td>
+          <td class="num ${tempClass(s.currentTemp)}">${s.currentTemp.toFixed(1)} °C</td>
+          <td class="num">${fmtCountdown(s.countdownS)}</td>
+          <td class="num ${coalClass(s.coalHours)}">${fmtCoal(s.coalHours)}</td>
+          <td class="hide-mobile">
+            <span class="mode-pill ${modeClass}">${dict[modeKey] || m.furnace_mode}</span>
+            <span style="color:var(--text-mute);font-size:11px;margin-left:4px">L${m.furnace_level}</span>
+          </td>
+          <td><span class="status-badge status-${s.status}">${dict['status' + s.status.charAt(0).toUpperCase() + s.status.slice(1)]}</span></td>
+          <td class="hide-mobile row-actions">
+            <a href="#" data-i18n="actSeeMap" data-coord="${m.coord_x},${m.coord_y}">See map</a>
+            <a href="#" data-i18n="actSeeHeat" data-coord="${m.coord_x},${m.coord_y}">See heat overlay</a>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    // re-apply i18n in case action links or dynamic bits need it
+    window.i18nApply(LANG);
+
+    // stats + timestamp
+    document.getElementById('cardHeaderStats').textContent =
+      `${rows.length} members · ${frozenCount} frozen · ${imminentCount} imminent · ${dangerCount} danger`;
+    document.getElementById('cardHeaderTs').textContent = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[c]);
+  }
+
+  // ---- CSV import ----------------------------------------------------------
+
+  function parseRosterCsv(text) {
+    // Very forgiving CSV parser — same column shape as Alliance_Hive_Grid_Manager/hive_members_export.csv:
+    //   name,rank,hq_level,total_power,notes
+    // Additional per-member state (coord, coal, furnace) will not be in the CSV;
+    // we seed sensible defaults so the dashboard renders and the user can edit later.
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (!lines.length) return [];
+    const header = lines[0].split(',').map(s => s.trim().toLowerCase());
+    const idx = (k) => header.indexOf(k);
+    const out = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(',');
+      out.push({
+        name_en: (cols[idx('name')] || '').trim(),
+        name_kr: '',
+        rank: (cols[idx('rank')] || 'R1').trim(),
+        hq_level: parseInt(cols[idx('hq_level')] || '20', 10),
+        total_power: parseInt(cols[idx('total_power')] || '0', 10),
+        // seed defaults for state not in CSV — user edits after import (v2 UI)
+        coord_x: 500, coord_y: 500,
+        furnace_level: 15, furnace_mode: 'normal',
+        coal_stockpile: 100_000, in_alliance_furnace_range: true,
+        city_heat_bonus: 0, research_bonus: 5,
+        notes: (cols[idx('notes')] || '').trim(),
+      });
+    }
+    return out;
+  }
+
+  // ---- exports -------------------------------------------------------------
+
+  function exportCsv() {
+    const dict = window.I18N[LANG];
+    const rows = ROSTER.map(m => ({ m, s: computeMemberState(m) }));
+    const header = ['name', 'rank', 'coord', 'current_temp_c', 'freeze_in_s', 'coal_hours', 'furnace_mode', 'furnace_level', 'status'];
+    const body = rows.map(({ m, s }) => [
+      nameFor(m), m.rank, `${m.coord_x},${m.coord_y}`,
+      s.currentTemp.toFixed(1), s.countdownS == null ? '' : s.countdownS,
+      isFinite(s.coalHours) ? s.coalHours.toFixed(1) : '',
+      m.furnace_mode, m.furnace_level, s.status,
+    ].join(','));
+    const csv = [header.join(','), ...body].join('\n');
+    triggerDownload(csv, 'freeze-risk-' + tsForFile() + '.csv', 'text/csv');
+  }
+
+  function exportJson() {
+    const payload = {
+      exported_at: new Date().toISOString(),
+      tool: 'LWS_Freeze_Risk_Dashboard',
+      version: '0.1.0',
+      lang: LANG,
+      roster: ROSTER.map(m => ({ ...m, computed: computeMemberState(m) })),
+    };
+    triggerDownload(JSON.stringify(payload, null, 2), 'freeze-risk-' + tsForFile() + '.json', 'application/json');
+  }
+
+  function exportPng() {
+    // 1600×900 Discord-ready dark-theme snapshot of the current freeze-risk state.
+    // Matches shared palette from LWS_Access_Codes + LWS_Season_Timeline + LWS_Coal_Burn_Calculator.
+    const W = 1600, H = 900;
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    const C = {
+      bg: '#0a0e1a', panel: '#0d1424', panel2: '#12192c',
+      border: 'rgba(255,255,255,0.10)',
+      accent: '#c9a961', text: '#e6e8ee', textDim: '#a8b0c0', textMut: '#7a8290',
+      safe: '#8ae0a3', danger: '#e6cf7a', imminent: '#e0a06a', frozen: '#e08a8a',
+    };
+    const statusColor = { safe: C.safe, danger: C.danger, imminent: C.imminent, frozen: C.frozen };
+
+    // Compute status for every roster member (mirrors render()'s logic)
+    const rows = ROSTER.map(m => ({ m, s: computeMemberState(m) }));
+    const frozen = rows.filter(r => r.s.status === 'frozen').length;
+    const imminent = rows.filter(r => r.s.status === 'imminent').length;
+    const danger = rows.filter(r => r.s.status === 'danger').length;
+    const safe = rows.filter(r => r.s.status === 'safe').length;
+
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+
+    // Header
+    ctx.fillStyle = C.panel; ctx.fillRect(0, 0, W, 80);
+    ctx.strokeStyle = C.border; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, 80); ctx.lineTo(W, 80); ctx.stroke();
+    ctx.fillStyle = C.accent; ctx.textBaseline = 'middle';
+    ctx.font = '600 14px system-ui, -apple-system, sans-serif';
+    const brandLabel = (LANG === 'ko') ? '동결 위험 대시보드' : 'FREEZE RISK DASHBOARD';
+    ctx.fillText('R5TOOLS.IO · ' + brandLabel, 40, 40);
+    ctx.fillStyle = C.textDim; ctx.font = '400 13px system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(ROSTER.length + ' members · ' + new Date().toISOString().slice(0, 16).replace('T', ' ') + 'Z', W - 40, 40);
+    ctx.textAlign = 'left';
+
+    // Big alert headline
+    ctx.font = '400 16px system-ui, sans-serif';
+    ctx.fillStyle = C.textMut; ctx.textAlign = 'center';
+    ctx.fillText('Season 2 · Freeze Threshold -20°C for 5 continuous minutes', W / 2, 130);
+    const alertColor = frozen > 0 ? C.frozen : (imminent > 0 ? C.imminent : (danger > 0 ? C.danger : C.safe));
+    ctx.fillStyle = alertColor; ctx.font = '600 64px ui-monospace, SFMono-Regular, Menlo, monospace';
+    let headline;
+    if (frozen > 0) headline = frozen + ' FROZEN';
+    else if (imminent > 0) headline = imminent + ' IMMINENT';
+    else if (danger > 0) headline = danger + ' AT RISK';
+    else headline = 'ALL SAFE';
+    ctx.fillText(headline, W / 2, 195);
+
+    // Status pips row (frozen · imminent · danger · safe)
+    const pipsY = 250;
+    const pips = [
+      { count: frozen,   label: 'FROZEN',   color: C.frozen   },
+      { count: imminent, label: 'IMMINENT', color: C.imminent },
+      { count: danger,   label: 'DANGER',   color: C.danger   },
+      { count: safe,     label: 'SAFE',     color: C.safe     },
+    ];
+    const pipW = 240, pipGap = 20;
+    const pipsTotalW = pips.length * pipW + (pips.length - 1) * pipGap;
+    let pipX = (W - pipsTotalW) / 2;
+    pips.forEach(p => {
+      ctx.fillStyle = C.panel; ctx.fillRect(pipX, pipsY, pipW, 60);
+      ctx.strokeStyle = p.color; ctx.lineWidth = 2; ctx.strokeRect(pipX, pipsY, pipW, 60);
+      ctx.fillStyle = p.color; ctx.font = '600 24px ui-monospace, monospace';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(p.count), pipX + pipW / 2, pipsY + 22);
+      ctx.fillStyle = C.textDim; ctx.font = '500 11px system-ui, sans-serif';
+      ctx.fillText(p.label, pipX + pipW / 2, pipsY + 46);
+      pipX += pipW + pipGap;
+    });
+    ctx.textAlign = 'left';
+
+    // Table body
+    const tableY = 340, tableH = H - 340 - 60;
+    ctx.fillStyle = C.panel; ctx.fillRect(40, tableY, W - 80, tableH);
+    ctx.strokeStyle = C.border; ctx.strokeRect(40, tableY, W - 80, tableH);
+
+    const cols = [
+      { label: 'NAME',      x: 70,   w: 340, align: 'left' },
+      { label: 'RANK',      x: 430,  w: 70,  align: 'center' },
+      { label: 'HQ',        x: 520,  w: 60,  align: 'center' },
+      { label: 'BASE TEMP', x: 600,  w: 180, align: 'right' },
+      { label: 'FURNACE',   x: 800,  w: 130, align: 'center' },
+      { label: 'COUNTDOWN', x: 950,  w: 180, align: 'right' },
+      { label: 'STATUS',    x: 1150, w: 340, align: 'left' },
+    ];
+    ctx.fillStyle = C.accent; ctx.font = '600 12px system-ui, sans-serif';
+    ctx.textBaseline = 'middle';
+    cols.forEach(col => {
+      ctx.textAlign = col.align;
+      const tx = col.align === 'right' ? col.x + col.w : (col.align === 'center' ? col.x + col.w / 2 : col.x);
+      ctx.fillText(col.label, tx, tableY + 28);
+    });
+    ctx.strokeStyle = C.border; ctx.beginPath();
+    ctx.moveTo(60, tableY + 44); ctx.lineTo(W - 60, tableY + 44); ctx.stroke();
+
+    // Sort rows: worst first (frozen > imminent > danger > safe), then by countdown
+    const statusRank = { frozen: 0, imminent: 1, danger: 2, safe: 3 };
+    rows.sort((a, b) => (statusRank[a.s.status] - statusRank[b.s.status]) || (a.s.countdownS - b.s.countdownS));
+
+    const rowH = 30, rowY0 = tableY + 62;
+    const maxRows = Math.floor((tableH - 80) / rowH);
+    const shown = rows.slice(0, maxRows);
+    shown.forEach((r, i) => {
+      const y = rowY0 + i * rowH + 14;
+      // Left status bar
+      ctx.fillStyle = statusColor[r.s.status];
+      ctx.fillRect(46, y - 10, 4, 20);
+      // Name
+      ctx.fillStyle = C.text; ctx.font = '500 13px system-ui, sans-serif';
+      ctx.textAlign = 'left';
+      let name = r.m.name || '';
+      if (ctx.measureText(name).width > cols[0].w - 20) {
+        while (name.length > 3 && ctx.measureText(name + '…').width > cols[0].w - 20) name = name.slice(0, -1);
+        name += '…';
+      }
+      ctx.fillText(name, cols[0].x, y);
+      // Rank pill
+      ctx.fillStyle = C.panel2; ctx.fillRect(cols[1].x + 15, y - 10, 40, 20);
+      ctx.fillStyle = C.accent; ctx.font = '600 10px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(r.m.rank || '—', cols[1].x + cols[1].w / 2, y);
+      // HQ
+      ctx.fillStyle = C.textDim; ctx.font = '500 12px ui-monospace, monospace';
+      ctx.fillText(String(r.m.hq_level || '—'), cols[2].x + cols[2].w / 2, y);
+      // Base temp
+      ctx.textAlign = 'right';
+      const tempC = r.s.currentTemp;
+      ctx.fillStyle = tempC <= -20 ? C.frozen : (tempC < -10 ? C.imminent : (tempC < 10 ? C.danger : C.safe));
+      ctx.font = '600 13px ui-monospace, monospace';
+      ctx.fillText(tempC.toFixed(1) + '°C', cols[3].x + cols[3].w, y);
+      // Furnace mode
+      ctx.textAlign = 'center';
+      ctx.fillStyle = C.textDim; ctx.font = '500 11px system-ui, sans-serif';
+      ctx.fillText((r.m.furnace_mode || '?').toUpperCase(), cols[4].x + cols[4].w / 2, y);
+      // Countdown
+      ctx.textAlign = 'right';
+      ctx.fillStyle = r.s.status === 'imminent' ? C.imminent : C.textDim;
+      ctx.font = '500 12px ui-monospace, monospace';
+      const cd = r.s.countdownS;
+      let cdText = '—';
+      if (r.s.status === 'frozen') cdText = 'FROZEN';
+      else if (r.s.status === 'imminent') cdText = Math.floor(cd / 60) + 'm ' + (cd % 60) + 's';
+      else if (r.s.status === 'danger') cdText = 'watch';
+      else cdText = 'safe';
+      ctx.fillText(cdText, cols[5].x + cols[5].w, y);
+      // Status label
+      ctx.textAlign = 'left';
+      ctx.fillStyle = statusColor[r.s.status];
+      ctx.font = '600 11px system-ui, sans-serif';
+      ctx.fillText(r.s.status.toUpperCase(), cols[6].x, y);
+    });
+    if (rows.length > shown.length) {
+      ctx.fillStyle = C.textMut; ctx.font = '400 11px system-ui, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('+ ' + (rows.length - shown.length) + ' more', 60, tableY + tableH - 20);
+    }
+
+    // Footer
+    ctx.fillStyle = C.textMut; ctx.font = '400 12px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('r5tools.io · Freeze Risk Dashboard · KB: [[06-season-2-frozen]] -20°C / 5-min freeze threshold',
+                 W / 2, H - 30);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+
+    canvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'freeze-risk-' + tsForFile() + '.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  }
+
+  function triggerDownload(text, filename, mime) {
+    const blob = new Blob([text], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  }
+  function tsForFile() {
+    return new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+  }
+
+  // ---- wire it up ----------------------------------------------------------
+
+  document.getElementById('langToggle').addEventListener('click', () => {
+    LANG = (LANG === 'en') ? 'ko' : 'en';
+    window.i18nApply(LANG);
+    render();
+  });
+
+  document.getElementById('btnDemo').addEventListener('click', async () => {
+    try {
+      const r = await fetch('/api/demo');
+      const j = await r.json();
+      ROSTER = j.roster || [];
+      render();
+    } catch (e) {
+      alert('Demo data load failed: ' + e.message);
+    }
+  });
+
+  document.getElementById('btnImport').addEventListener('click', () => {
+    document.getElementById('csvInput').click();
+  });
+  document.getElementById('csvInput').addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        ROSTER = parseRosterCsv(reader.result);
+        // POST to server so refresh preserves it (best-effort)
+        fetch('/api/roster', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roster: ROSTER }),
+        }).catch(() => {});
+        render();
+      } catch (err) {
+        alert('CSV parse failed: ' + err.message);
+      }
+    };
+    reader.readAsText(f);
+  });
+
+  document.getElementById('filterSelect').addEventListener('change', (e) => {
+    FILTER = e.target.value; render();
+  });
+  document.getElementById('sortSelect').addEventListener('change', (e) => {
+    SORT = e.target.value; render();
+  });
+
+  // header column sort clicks
+  document.querySelectorAll('th[data-sort-key]').forEach(th => {
+    th.addEventListener('click', () => {
+      const k = th.getAttribute('data-sort-key');
+      const map = { coord: 'name', temp: 'status', countdown: 'status', coal: 'coal', furnace: 'status' };
+      SORT = map[k] || k;
+      document.getElementById('sortSelect').value = SORT;
+      render();
+    });
+  });
+
+  document.getElementById('btnExportPng').addEventListener('click', exportPng);
+  document.getElementById('btnExportCsv').addEventListener('click', exportCsv);
+  document.getElementById('btnExportJson').addEventListener('click', exportJson);
+
+  // initial paint
+  window.i18nApply(LANG);
+  render();
+
+  // Try to restore last-persisted roster on load
+  fetch('/api/roster').then(r => r.json()).then(j => {
+    if (Array.isArray(j.roster) && j.roster.length) {
+      ROSTER = j.roster;
+      render();
+    }
+  }).catch(() => {});
+  </script>
+</body>
+</html>
