@@ -58,6 +58,7 @@
         <button class="primary" id="btnDemo" data-i18n="toolLoadDemo">Load demo data</button>
         <button id="btnImport" data-i18n="toolImportCsv">Import roster CSV</button>
         <input type="file" id="csvInput" accept=".csv,text/csv" style="display:none" />
+        <span id="lws-roster-picker" style="margin-left:8px"></span>
 
         <span class="grow"></span>
 
@@ -719,5 +720,25 @@
     }
   }).catch(() => {});
   </script>
+
+  <script src="static/roster-picker.js" defer></script>
+  <script>
+    window.addEventListener('lws:roster-loaded', function (ev) {
+      var rows = ev.detail.rows;
+      if (!rows || !rows.length) return;
+      var headers = Object.keys(rows[0]);
+      var csv = headers.join(',') + '
+' +
+        rows.map(function (r) { return headers.map(function (h) { return (r[h] || ''); }).join(','); }).join('
+');
+      var input = document.getElementById('csvInput');
+      if (!input) { console.warn('[LWS] roster input not found'); return; }
+      var dt = new DataTransfer();
+      dt.items.add(new File([csv], ev.detail.name + '.csv', { type: 'text/csv' }));
+      input.files = dt.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  </script>
+
 </body>
 </html>
