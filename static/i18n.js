@@ -110,6 +110,13 @@ window.I18N = {
     noFreezeBody_s5: "Season 5 (Wild West) has no per-member environmental countdown. War days are Wed/Sat only, with R5-set Alliance Safe Time immunity (7–15 h) and a full Sunday Truce Day. See the Safe Time Scheduler sibling tool instead.",
     noFreezeBody_s6: "Season 6 (Shadow Rainforest) has no per-member environmental countdown. Risk shifts to permanent City Destruction (attacker +50% IP, defender -100%) and Tuesday-only Altar windows (max 3 held). See the Altar Conquest Planner + Beneath the Ruins Scheduler sibling tools instead.",
 
+    // ---- S7 placeholder (universal across the 4-tool suite) ----
+    titleS7: "Freeze Risk Dashboard",
+    subtitleS7: "Season 7 — mechanics pending publication",
+    s7ComingTitle: "Season 7 launches ~August 2026",
+    s7ComingBody: "Full dashboard support arrives when First Fun publishes S7's mechanics. Until then, no environmental hazard, no per-member countdown, no resource system, and no hero rotation are confirmed. Two YouTube signals (2026-07-09, 2026-07-13) point to an August launch; the underlying leak was pulled within 24 h. S3–S6 pattern-inference suggests 2-week pre-season + 8-week main, Hero Awakening rotation W1 / W3 / W6, faction system retained, and a possible T12 troop tier at celebration week. Track updates via r5tools.io.",
+    s7ComingTracker: "Track: r5tools.io",
+
     // ---- S1 virus-stack variant ----
     s1MechLabel: "SEASON 1 · CRIMSON PLAGUE",
     s1StackCap: "Virus Stack cap: 100 (Doomed at 100 — no rally / teleport / relocate)",
@@ -123,6 +130,9 @@ window.I18N = {
     s1ColDoomedIn: "Doomed in",
     s1ColAntivirus: "Antivirus stock hrs",
     s1StubBanner: "S1 STUB · Per-member Virus-Stack compute is coming. This sprint surfaces the key S1 numbers; roster CSVs need a virus_stack column before the grid will populate.",
+    s1BandThresholdWarning: "Virus Stack band thresholds (40 / 70 / 100) are r5tools.io tool-authored heuristics — KB05 §16.3 confirms only the Doomed = 100 endpoint (rally / teleport / relocate locked). Cross-check against your server's observed doom rate before triaging.",
+    s1VriBuildingCta: "Grind VRI (Virus Research Institute) to L30 for +10,000 Virus Resistance — the ONLY meaningful S1 resistance source. Every other VR bump (research, hero passive) rounds to noise against a 100-stack Corruptor push (KB05 §16.3).",
+    s1CorruptorAutoHint: "Corruptor NPCs auto-infect on any hit regardless of your VR total — VR only slows normal-mob transmission. Keep 6+ hours of antivirus stocked before Rain-phase to break the loop.",
 
     // ---- S4 Blood Night variant ----
     s4MechLabel: "SEASON 4 · EVERNIGHT ISLE",
@@ -144,6 +154,9 @@ window.I18N = {
     s4ColBloodNightIn: "Blood Night in",
     s4ColDrainBuffer: "Drain buffer min",
     s4StubBanner: "S4 STUB · Per-member Blood Night power-drain compute is coming. This sprint surfaces the 3 daily windows + weekly stage; roster CSVs need a power_reserve column before the grid will populate.",
+    s4LighthouseMitigationHint: "Lighthouse L1 / L2 / L3 / L4 grants +50 / +150 / +250 / +250 VR mitigation during Blood Night. L4 requires Optoelectronic Lab L20+ (KB07 §153–158). Prioritize the L20 Opto-Lab research chain in W1–2 or you'll cap at +250 total.",
+    s4DivineTreeHint: "Divine Tree (unlocked via Fortune Slips post-activation) grants +250 VR during Blood Night, additive with Lighthouse — a maxed pair reaches +500 VR combined (KB07 §153–158). Keep at least one Fortune Slip in reserve for the Stage-3 Hunting Oni pivot.",
+    s4DrainMathHint: "30-min window × 18,000 power/min = 540,000 power drained per Blood Night, or ~1.62M/day at full 3-window exposure. Buffer thresholds (30 / 15 / 5 min) below assume a rested Baseline Stage 1 defender; Stage-4 Towards the Light debuffs shrink these by ~30%.",
 
     // footer
     footerCred: "Powered by the LWS Knowledge Base",
@@ -259,6 +272,13 @@ window.I18N = {
     noFreezeBody_s5: "시즌 5 (와일드 웨스트)에는 멤버별 환경 카운트다운이 없습니다. 전쟁일은 수/토요일뿐이며, R5가 설정하는 연맹 안전 시간(7–15시간)과 일요일 완전 휴전일이 있습니다. 대신 안전 시간 스케줄러 도구를 사용하세요.",
     noFreezeBody_s6: "시즌 6 (섀도우 레인포레스트)에는 멤버별 환경 카운트다운이 없습니다. 위험은 영구 도시 파괴(공격자 +50% IP, 방어자 -100%)와 화요일 전용 제단(최대 3개 보유)으로 이동합니다. 대신 제단 정복 플래너 + 폐허 아래 스케줄러 도구를 사용하세요.",
 
+    // ---- S7 placeholder ----
+    titleS7: "동결 위험 대시보드",
+    subtitleS7: "시즌 7 — 메커니즘 공개 대기 중",
+    s7ComingTitle: "시즌 7 출시 예정 — 2026년 8월경",
+    s7ComingBody: "First Fun이 시즌 7 메커니즘을 공개하면 전체 대시보드 지원이 시작됩니다. 그때까지 환경 위험, 멤버별 카운트다운, 자원 시스템, 영웅 로테이션 모두 미확정입니다. YouTube 신호 2건(2026-07-09, 2026-07-13)이 8월 출시를 시사했지만 실제 유출은 24시간 이내 삭제. 시즌 3–6 패턴 추정: 2주 사전 시즌 + 8주 본 시즌 · 영웅 각성 로테이션 1주차 / 3주차 / 6주차 · 팩션 시스템 유지 · 축하 주간 T12 병력 가능성. 업데이트는 r5tools.io에서 확인하세요.",
+    s7ComingTracker: "추적: r5tools.io",
+
     // ---- S1 virus-stack variant ----
     s1MechLabel: "시즌 1 · 크림슨 플레이그",
     s1StackCap: "바이러스 스택 최대치: 100 (100 도달 시 파멸 — 집결/순간이동/재배치 불가)",
@@ -272,6 +292,9 @@ window.I18N = {
     s1ColDoomedIn: "파멸까지",
     s1ColAntivirus: "백신 재고 시간",
     s1StubBanner: "시즌 1 스텁 · 멤버별 바이러스 스택 계산은 준비 중입니다. 이번 스프린트는 시즌 1 핵심 수치만 표시하며, 그리드 표시에는 명부 CSV에 virus_stack 컬럼이 필요합니다.",
+    s1BandThresholdWarning: "바이러스 스택 구간 임계값 (40 / 70 / 100)은 r5tools.io 도구 자체 휴리스틱입니다 — KB05 §16.3은 파멸 = 100 지점만 확정 (집결 / 순간이동 / 재배치 잠금). 서버 관측 파멸 발생률과 대조 후 조치하세요.",
+    s1VriBuildingCta: "VRI (바이러스 연구소)를 L30까지 육성 → +10,000 바이러스 저항 — 시즌 1에서 유일하게 유의미한 저항 소스입니다. 다른 저항 상승 (연구, 영웅 패시브)은 100 스택 커럽터 공세 앞에서 노이즈 수준 (KB05 §16.3).",
+    s1CorruptorAutoHint: "커럽터 NPC는 VR 합계와 무관하게 피격 시 자동 감염 — VR은 일반 몹 전염 속도만 감소시킵니다. 우기 이전에 백신 6시간분 이상 확보하여 감염 루프를 끊으세요.",
 
     // ---- S4 Blood Night variant ----
     s4MechLabel: "시즌 4 · 에버나이트 아일",
@@ -293,6 +316,9 @@ window.I18N = {
     s4ColBloodNightIn: "블러드 나이트까지",
     s4ColDrainBuffer: "드레인 버퍼 분",
     s4StubBanner: "시즌 4 스텁 · 멤버별 블러드 나이트 파워 드레인 계산은 준비 중입니다. 이번 스프린트는 하루 3회 구간과 주간 단계만 표시하며, 그리드 표시에는 명부 CSV에 power_reserve 컬럼이 필요합니다.",
+    s4LighthouseMitigationHint: "등대 L1 / L2 / L3 / L4는 블러드 나이트 중 +50 / +150 / +250 / +250 VR 완화. L4는 광전기 실험실 L20+ 필요 (KB07 §153–158). 1–2주차에 광전기 실험실 L20 연구 체인을 우선하지 않으면 총 +250에서 정체됩니다.",
+    s4DivineTreeHint: "디바인 트리 (활성화 후 포춘 슬립으로 해금)는 블러드 나이트 중 +250 VR — 등대와 누적되어 최대 조합 시 +500 VR 도달 (KB07 §153–158). 3단계 오니 사냥 전환에 대비하여 포춘 슬립 최소 1개는 보유하세요.",
+    s4DrainMathHint: "30분 구간 × 분당 18,000 파워 = 블러드 나이트 1회당 540,000 파워 소모, 하루 3회 완전 노출 시 약 162만/일. 아래 버퍼 임계값 (30 / 15 / 5분)은 휴식 상태 1단계 방어자 기준이며, 4단계 '빛을 향해' 디버프는 약 30% 축소시킵니다.",
 
     // footer
     footerCred: "LWS 지식 베이스 기반",

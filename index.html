@@ -217,6 +217,8 @@
     's4-evernight-isle':    { mode: 'blood_night', titleKey: 'titleS4', subtitleKey: 'subtitleS4' },
     's5-wild-west':         { mode: 'inactive',    titleKey: 'titleS5', subtitleKey: 'subtitleS5', bodyKey: 'noFreezeBody_s5' },
     's6-shadow-rainforest': { mode: 'inactive',    titleKey: 'titleS6', subtitleKey: 'subtitleS6', bodyKey: 'noFreezeBody_s6' },
+    's7-tbd':               { mode: 'placeholder', titleKey: 'titleS7', subtitleKey: 'subtitleS7' },
+    's7-unnamed':           { mode: 'placeholder', titleKey: 'titleS7', subtitleKey: 'subtitleS7' },
   };
 
   // Read-through accessors so the rest of the file doesn't care where these came from.
@@ -971,6 +973,26 @@
     // Reset visibility
     if (stubBanner) stubBanner.style.display = 'none';
 
+    // Handle S7 placeholder — hides everything, shows a coming-soon card.
+    if (SEASON_CFG.variantMode === 'placeholder') {
+      panel.style.display = 'none';
+      notice.style.display = '';
+      if (mainCard) mainCard.style.display = 'none';
+      if (alertBanner) alertBanner.classList.add('hidden');
+      if (toolbar) toolbar.style.opacity = '0.4';
+      // Repurpose the noFreezeNotice card as the S7 placeholder.
+      var noticeTitle = document.getElementById('noFreezeTitle');
+      if (noticeTitle) {
+        noticeTitle.setAttribute('data-i18n', 's7ComingTitle');
+        noticeTitle.textContent = dict.s7ComingTitle || 'Season 7 launches ~August 2026';
+      }
+      if (noticeBody) {
+        noticeBody.setAttribute('data-i18n', 's7ComingBody');
+        noticeBody.textContent = dict.s7ComingBody || '';
+      }
+      return;
+    }
+
     // Handle S1 virus / S4 blood_night variant stubs BEFORE the freeze fallback.
     if (SEASON_CFG.variantMode === 'virus' || SEASON_CFG.variantMode === 'blood_night') {
       // Grid + toolbar + alert banner hidden — feature-fill is next sprint.
@@ -984,17 +1006,47 @@
       } else {
         renderBloodNightVariant(ctx, dict);
       }
-      // Stub banner
+      // Stub banner + KB-cited operational hints (v1 upgrade copy).
       if (stubBanner) {
         stubBanner.style.display = '';
         const label = document.getElementById('variantStubLabel');
         const body = document.getElementById('variantStubBody');
         if (SEASON_CFG.variantMode === 'virus') {
           if (label) label.textContent = (dict.s1MechLabel || 'SEASON 1') + ' · STUB';
-          if (body)  body.textContent  = dict.s1StubBanner || '';
+          if (body) {
+            body.innerHTML = '';
+            var s1Rows = [
+              dict.s1StubBanner || '',
+              dict.s1BandThresholdWarning || '',
+              dict.s1VriBuildingCta || '',
+              dict.s1CorruptorAutoHint || '',
+            ].filter(Boolean);
+            s1Rows.forEach(function (t, i) {
+              var row = document.createElement('div');
+              row.style.cssText = 'margin-top:' + (i === 0 ? '0' : '10px') + ';' +
+                                  (i > 0 ? 'padding-top:10px;border-top:1px solid rgba(201,169,97,0.15);color:#a8b0c0;font-size:12px;line-height:1.5' : '');
+              row.textContent = t;
+              body.appendChild(row);
+            });
+          }
         } else {
           if (label) label.textContent = (dict.s4MechLabel || 'SEASON 4') + ' · STUB';
-          if (body)  body.textContent  = dict.s4StubBanner || '';
+          if (body) {
+            body.innerHTML = '';
+            var s4Rows = [
+              dict.s4StubBanner || '',
+              dict.s4LighthouseMitigationHint || '',
+              dict.s4DivineTreeHint || '',
+              dict.s4DrainMathHint || '',
+            ].filter(Boolean);
+            s4Rows.forEach(function (t, i) {
+              var row = document.createElement('div');
+              row.style.cssText = 'margin-top:' + (i === 0 ? '0' : '10px') + ';' +
+                                  (i > 0 ? 'padding-top:10px;border-top:1px solid rgba(201,169,97,0.15);color:#a8b0c0;font-size:12px;line-height:1.5' : '');
+              row.textContent = t;
+              body.appendChild(row);
+            });
+          }
         }
       }
       return;
