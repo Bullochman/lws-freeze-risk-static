@@ -76,6 +76,14 @@
         <div style="font-size:12px;color:#7a8290" id="noFreezeBody" data-i18n="noFreezeBody">This dashboard is Season-2-specific (Polar Storm). Switch back to Season 2 via the warzone selector to use it.</div>
       </div>
 
+      <!-- S1 / S4 variant stub banner — sibling to noFreezeNotice.
+           Rendered when variantMode ∈ {virus, blood_night}; carries the
+           key numbers surfaced this sprint while full compute is out of scope. -->
+      <div id="variantStubBanner" style="background:#12192c;border:1px dashed rgba(201,169,97,0.35);border-radius:8px;padding:16px 20px;margin:14px 0;color:#a8b0c0;display:none">
+        <div style="color:#c9a961;font-size:11px;font-weight:600;letter-spacing:.08em;margin-bottom:6px" id="variantStubLabel">STUB</div>
+        <div style="font-size:13px;line-height:1.5" id="variantStubBody">—</div>
+      </div>
+
       <!-- toolbar --------------------------------------------- -->
       <div class="toolbar" id="toolbar">
         <button class="primary" id="btnDemo" data-i18n="toolLoadDemo">Load demo data</button>
@@ -192,6 +200,23 @@
       { from_week: 4, to_week: 8, drop_c: -50, severity: 'critical' },
     ],
     hasFreezeMechanics: true,
+    // Variant mode determines which UI branch renders under the header:
+    //   freeze       — S2 default (grid + blizzard-pill strip)
+    //   virus        — S1 Crimson Plague stub (Virus Stack meter, 7-day Doomsday cycle)
+    //   blood_night  — S4 Evernight Isle stub (3×/day windows, 4-stage weekly band)
+    //   inactive     — S3/S5/S6 (no per-member environmental risk; noFreezeNotice branch)
+    variantMode: 'freeze',
+  };
+
+  // Map season_id → variant mode + which noFreezeBody key to use (for inactive seasons).
+  // Sourced from the design spec (kb citations in per_season_plan[]).
+  const SEASON_VARIANT = {
+    's1-crimson-plague':    { mode: 'virus',       titleKey: 'titleS1', subtitleKey: 'subtitleS1' },
+    's2-polar-storm':       { mode: 'freeze',      titleKey: 'title',   subtitleKey: 'subtitle'   },
+    's3-golden-kingdom':    { mode: 'inactive',    titleKey: 'titleS3', subtitleKey: 'subtitleS3', bodyKey: 'noFreezeBody_s3' },
+    's4-evernight-isle':    { mode: 'blood_night', titleKey: 'titleS4', subtitleKey: 'subtitleS4' },
+    's5-wild-west':         { mode: 'inactive',    titleKey: 'titleS5', subtitleKey: 'subtitleS5', bodyKey: 'noFreezeBody_s5' },
+    's6-shadow-rainforest': { mode: 'inactive',    titleKey: 'titleS6', subtitleKey: 'subtitleS6', bodyKey: 'noFreezeBody_s6' },
   };
 
   // Read-through accessors so the rest of the file doesn't care where these came from.
@@ -794,17 +819,198 @@
     return { warning: '#e6cf7a', danger: '#e0a06a', critical: '#e08a8a' }[sev] || '#7a8290';
   }
 
+  // Swap the header title/subtitle data-i18n keys for the current season,
+  // then re-run i18nApply so the DOM text updates. Also rotates the footer
+  // "Related tools" links to season-appropriate siblings.
+  function applySeasonHeader(sid) {
+    const spec = SEASON_VARIANT[sid] || SEASON_VARIANT['s2-polar-storm'];
+    const titleEl = document.querySelector('header h1');
+    const subtitleEl = document.querySelector('header .subtitle');
+    if (titleEl)    titleEl.setAttribute('data-i18n', spec.titleKey);
+    if (subtitleEl) subtitleEl.setAttribute('data-i18n', spec.subtitleKey);
+
+    // Rotate footer related-tools per variant. Element order is:
+    //   [0] Hive Planner   [1] Heat   [2] Coal   [3] Access Codes
+    // For S1 we swap Heat→Doomsday; for S4 we swap Heat→Blood Night;
+    // for S3/S5/S6 we swap Heat→Curse/SafeTime/Altar. Coal stays because
+    // it's still relevant infra for any season with a base.
+    const relLinks = document.querySelectorAll('footer .related-tools a');
+    if (relLinks.length >= 2) {
+      const swap = relLinks[1];
+      if (spec.mode === 'virus') {
+        swap.setAttribute('data-i18n', 'footerRelDoomsday');
+        swap.setAttribute('href', '#'); // placeholder — Doomsday Cycle Planner sibling
+      } else if (spec.mode === 'blood_night') {
+        swap.setAttribute('data-i18n', 'footerRelBlood');
+        swap.setAttribute('href', '#'); // placeholder — Blood Night Scheduler sibling
+      } else if (sid === 's3-golden-kingdom') {
+        swap.setAttribute('data-i18n', 'footerRelCurse');
+        swap.setAttribute('href', '#');
+      } else if (sid === 's5-wild-west') {
+        swap.setAttribute('data-i18n', 'footerRelSafeTime');
+        swap.setAttribute('href', '#');
+      } else if (sid === 's6-shadow-rainforest') {
+        swap.setAttribute('data-i18n', 'footerRelAltar');
+        swap.setAttribute('href', '#');
+      } else {
+        swap.setAttribute('data-i18n', 'footerRelHeat');
+        swap.setAttribute('href', '#');
+      }
+    }
+    window.i18nApply(LANG);
+  }
+
+  // Render the S1 virus-stack stub panel — freezeMechPanel repurposed with
+  // Doomsday cycle countdown in the top-strip + friendly banner surfacing
+  // stack cap 100, Corruptor auto-infect, 7-day cycle.
+  function renderVirusVariant(ctx, dict) {
+    const panel = document.getElementById('freezeMechPanel');
+    document.getElementById('fmpSeasonLabel').textContent = dict.s1MechLabel || 'SEASON 1 · CRIMSON PLAGUE';
+    document.getElementById('fmpThreshold').textContent = dict.s1StackCap || 'Virus Stack cap: 100';
+    document.getElementById('fmpWeek').textContent = (dict.s1DoomsdayCycle || 'Doomsday cycle: 7-day rotation');
+
+    // Repurpose the strip as VS-stack band pills.
+    const strip = document.getElementById('fmpBlizzardStrip');
+    strip.innerHTML = '';
+    const bands = [
+      { label: dict.s1BandSafe     || 'SAFE (stack 0–40)',     color: '#8ae0a3' },
+      { label: dict.s1BandDanger   || 'DANGER (stack 41–70)',  color: '#e6cf7a' },
+      { label: dict.s1BandImminent || 'IMMINENT (stack 71–99)',color: '#e0a06a' },
+      { label: dict.s1BandDoomed   || 'DOOMED (stack 100)',    color: '#e08a8a' },
+    ];
+    bands.forEach(b => {
+      const pill = document.createElement('span');
+      pill.style.cssText =
+        'padding:3px 10px;border-radius:12px;font-size:11px;font-family:ui-monospace,monospace;' +
+        'border:1px solid ' + b.color + ';color:' + b.color + ';background:transparent;font-weight:500';
+      pill.textContent = b.label;
+      strip.appendChild(pill);
+    });
+    panel.style.display = '';
+  }
+
+  // Render the S4 Blood Night stub panel — 3 daily windows + NEXT highlight,
+  // live countdown in fmpWeek slot, 4-stage weekly mini-band below.
+  function renderBloodNightVariant(ctx, dict) {
+    const panel = document.getElementById('freezeMechPanel');
+    document.getElementById('fmpSeasonLabel').textContent = dict.s4MechLabel || 'SEASON 4 · EVERNIGHT ISLE';
+    document.getElementById('fmpThreshold').textContent = dict.s4BloodNightHead || 'Blood Night · 3×/day · 30 min · 18,000 power/min';
+
+    // Live countdown to next Blood Night window (02:30 / 10:30 / 18:30 server time).
+    const windows = [
+      { h: 2,  m: 30, key: 's4Window1', label: '02:30' },
+      { h: 10, m: 30, key: 's4Window2', label: '10:30' },
+      { h: 18, m: 30, key: 's4Window3', label: '18:30' },
+    ];
+    const now = new Date();
+    let nextIdx = -1;
+    let minDelta = Infinity;
+    for (let i = 0; i < windows.length; i++) {
+      const w = windows[i];
+      const cand = new Date(now);
+      cand.setUTCHours(w.h, w.m, 0, 0);
+      let delta = cand - now;
+      if (delta < 0) delta += 24 * 60 * 60 * 1000;
+      if (delta < minDelta) { minDelta = delta; nextIdx = i; }
+    }
+    const mins = Math.floor(minDelta / 60000);
+    const hrs = Math.floor(mins / 60);
+    const rem = mins % 60;
+    document.getElementById('fmpWeek').textContent =
+      (dict.s4TimeToNext || 'Time to next') + ': ' + hrs + 'h ' + rem + 'm';
+
+    // Strip = 3 daily window pills, NEXT highlighted, + 4-stage weekly band below.
+    const strip = document.getElementById('fmpBlizzardStrip');
+    strip.innerHTML = '';
+    windows.forEach((w, i) => {
+      const isNext = (i === nextIdx);
+      const pill = document.createElement('span');
+      pill.style.cssText =
+        'padding:3px 10px;border-radius:12px;font-size:11px;font-family:ui-monospace,monospace;' +
+        'border:1px solid ' + (isNext ? '#e08a8a' : '#7a8290') + ';' +
+        'color:' + (isNext ? '#0a0e1a' : '#a8b0c0') + ';' +
+        'background:' + (isNext ? '#e08a8a' : 'transparent') + ';' +
+        'font-weight:' + (isNext ? '700' : '500');
+      pill.textContent = w.label + (isNext ? ' · ' + (dict.s4WindowNext || 'NEXT') : '');
+      strip.appendChild(pill);
+    });
+    // Weekly stage mini-band
+    const wk = SEASON_CFG.week || 1;
+    const stages = [
+      { active: wk >= 1 && wk < 2, label: dict.s4Stage1 || 'Stage 1' },
+      { active: wk >= 2 && wk < 3, label: dict.s4Stage2 || 'Stage 2' },
+      { active: wk >= 3 && wk < 8, label: dict.s4Stage3 || 'Stage 3' },
+      { active: wk >= 8,          label: dict.s4Stage4 || 'Stage 4' },
+    ];
+    const stageRow = document.createElement('div');
+    stageRow.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;flex-basis:100%';
+    stages.forEach(s => {
+      const badge = document.createElement('span');
+      badge.style.cssText =
+        'padding:2px 8px;border-radius:10px;font-size:10px;font-family:ui-monospace,monospace;' +
+        'border:1px solid ' + (s.active ? '#c9a961' : 'rgba(122,130,144,0.5)') + ';' +
+        'color:' + (s.active ? '#c9a961' : '#7a8290') + ';' +
+        'font-weight:' + (s.active ? '700' : '500');
+      badge.textContent = s.label;
+      stageRow.appendChild(badge);
+    });
+    strip.appendChild(stageRow);
+    panel.style.display = '';
+  }
+
   function renderFreezeMechPanel(ctx, cfg) {
     const dict = window.I18N[LANG] || window.I18N.en;
     const panel = document.getElementById('freezeMechPanel');
     const notice = document.getElementById('noFreezeNotice');
+    const stubBanner = document.getElementById('variantStubBanner');
     const mainCard = document.querySelector('#main-app .card');
     const alertBanner = document.getElementById('alertBanner');
     const toolbar = document.getElementById('toolbar');
+    const noticeBody = document.getElementById('noFreezeBody');
+
+    // Reset visibility
+    if (stubBanner) stubBanner.style.display = 'none';
+
+    // Handle S1 virus / S4 blood_night variant stubs BEFORE the freeze fallback.
+    if (SEASON_CFG.variantMode === 'virus' || SEASON_CFG.variantMode === 'blood_night') {
+      // Grid + toolbar + alert banner hidden — feature-fill is next sprint.
+      panel.style.display = '';
+      notice.style.display = 'none';
+      if (mainCard) mainCard.style.display = 'none';
+      if (alertBanner) alertBanner.classList.add('hidden');
+      if (toolbar) toolbar.style.opacity = '0.4';
+      if (SEASON_CFG.variantMode === 'virus') {
+        renderVirusVariant(ctx, dict);
+      } else {
+        renderBloodNightVariant(ctx, dict);
+      }
+      // Stub banner
+      if (stubBanner) {
+        stubBanner.style.display = '';
+        const label = document.getElementById('variantStubLabel');
+        const body = document.getElementById('variantStubBody');
+        if (SEASON_CFG.variantMode === 'virus') {
+          if (label) label.textContent = (dict.s1MechLabel || 'SEASON 1') + ' · STUB';
+          if (body)  body.textContent  = dict.s1StubBanner || '';
+        } else {
+          if (label) label.textContent = (dict.s4MechLabel || 'SEASON 4') + ' · STUB';
+          if (body)  body.textContent  = dict.s4StubBanner || '';
+        }
+      }
+      return;
+    }
 
     if (!SEASON_CFG.hasFreezeMechanics) {
       panel.style.display = 'none';
       notice.style.display = '';
+      // Swap noFreezeBody copy per season if a per-season key exists.
+      if (noticeBody) {
+        const sid = SEASON_CFG.seasonId;
+        const spec = SEASON_VARIANT[sid];
+        const bodyKey = (spec && spec.bodyKey) || 'noFreezeBody';
+        noticeBody.setAttribute('data-i18n', bodyKey);
+        if (dict[bodyKey]) noticeBody.textContent = dict[bodyKey];
+      }
       if (mainCard) mainCard.style.display = 'none';
       if (alertBanner) alertBanner.classList.add('hidden');
       if (toolbar) toolbar.style.opacity = '0.4';
@@ -851,10 +1057,20 @@
     }
   }
 
+  // Resolve the variant mode (freeze / virus / blood_night / inactive) for a
+  // given season_id. S2 keeps `freeze` unconditionally so its behavior is untouched.
+  function resolveVariantMode(sid) {
+    const spec = SEASON_VARIANT[sid];
+    if (!spec) return 'freeze';
+    return spec.mode;
+  }
+
   function hydrateSeason() {
     if (!window.LWSSeasons || typeof LWSSeasons.resolve !== 'function') {
       // LWSSeasons not loaded (offline / local hack) — defaults already in SEASON_CFG.
       SEASON_CFG.hasFreezeMechanics = true;
+      SEASON_CFG.variantMode = 'freeze';
+      applySeasonHeader(SEASON_CFG.seasonId);
       renderFreezeMechPanel(null, {});
       return;
     }
@@ -864,7 +1080,11 @@
       SEASON_CFG.seasonId = ctx.season_id;
       SEASON_CFG.seasonName = (ctx.season && ctx.season.name && (ctx.season.name.en || ctx.season.name[LANG])) || ctx.season_id;
       SEASON_CFG.week = ctx.week || 1;
-      SEASON_CFG.hasFreezeMechanics = !!(sched && sched.length);
+      SEASON_CFG.variantMode = resolveVariantMode(ctx.season_id);
+      // hasFreezeMechanics is true ONLY for the freeze variant with a real schedule.
+      // Other variants (virus / blood_night) have their own dedicated render path;
+      // inactive falls through to noFreezeNotice.
+      SEASON_CFG.hasFreezeMechanics = (SEASON_CFG.variantMode === 'freeze') && !!(sched && sched.length);
       if (SEASON_CFG.hasFreezeMechanics) {
         SEASON_CFG.freezeThresholdC  = (typeof cfg.freeze_threshold_c === 'number') ? cfg.freeze_threshold_c : SEASON_CFG.freezeThresholdC;
         SEASON_CFG.freezeDurationMin = (typeof cfg.freeze_duration_min === 'number') ? cfg.freeze_duration_min : SEASON_CFG.freezeDurationMin;
@@ -873,11 +1093,14 @@
       } else {
         SEASON_CFG.blizzardSchedule = [];
       }
+      applySeasonHeader(ctx.season_id);
       renderFreezeMechPanel(ctx, cfg);
       render();
     }).catch(function (e) {
       console.warn('[LWS Freeze Risk] LWSSeasons.resolve failed, using S2 defaults:', e);
       SEASON_CFG.hasFreezeMechanics = true;
+      SEASON_CFG.variantMode = 'freeze';
+      applySeasonHeader(SEASON_CFG.seasonId);
       renderFreezeMechPanel(null, {});
       render();
     });
