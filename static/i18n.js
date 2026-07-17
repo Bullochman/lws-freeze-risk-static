@@ -374,6 +374,12 @@ window.I18N = {
  * otherwise English. Toggle pill in the top-right flips at any time. */
 
 window.i18nDetectLang = function () {
+  // Prefer the suite-shared `lws_lang` preference set by any sibling tool's
+  // langToggle. Falls back to navigator.language.
+  try {
+    var stored = localStorage.getItem("lws_lang");
+    if (stored === "en" || stored === "ko") return stored;
+  } catch (e) { /* private mode */ }
   var l = (navigator.language || "en").toLowerCase();
   return l.startsWith("ko") ? "ko" : "en";
 };

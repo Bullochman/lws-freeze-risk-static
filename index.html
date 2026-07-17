@@ -741,6 +741,8 @@
 
   document.getElementById('langToggle').addEventListener('click', () => {
     LANG = (LANG === 'en') ? 'ko' : 'en';
+    try { localStorage.setItem('lws_lang', LANG); } catch (e) { /* ignore */ }
+    try { window.dispatchEvent(new CustomEvent('lws:lang-changed', { detail: { lang: LANG } })); } catch (e) { /* ignore */ }
     window.i18nApply(LANG);
     render();
   });
