@@ -18,6 +18,23 @@ window.I18N = {
     subtitle: "Season 2 (Polar Storm) — live per-member freeze-risk board",
     langToggle: "한국어",
 
+    // ---- shared suite-nav (r5tools.io toolkit strip) ----
+    suiteNavPart: "Part of the ",
+    suiteNavToolkit: " Last War: Survival alliance toolkit — ",
+    navLanding: "Landing",
+    navHeat: "Heat",
+    navFreeze: "Freeze",
+    navCoal: "Coal",
+    navCity: "City",
+    navTimeline: "Timeline",
+    navHive: "Hive",
+    navRoster: "Roster",
+    navProfile: "Profile",
+    navVsDays: "VS Days",
+    betaFeedbackPill: "🚧 BETA · Feedback",
+    fmpSeasonLoading: "SEASON —",
+    fmpThresholdLoading: "Freeze threshold: — °C for — min",
+
     // alert banner
     alertCalm: "All members safe",
     alertWarnPre: "",
@@ -179,6 +196,23 @@ window.I18N = {
     title: "동결 위험 대시보드",
     subtitle: "시즌 2 (폴라 스톰) — 멤버별 실시간 동결 위험 보드",
     langToggle: "EN",
+
+    // ---- shared suite-nav (r5tools.io toolkit strip) ----
+    suiteNavPart: "이 도구는 ",
+    suiteNavToolkit: " 라스트 워: 서바이벌 얼라이언스 툴킷의 일부입니다 — ",
+    navLanding: "랜딩",
+    navHeat: "히트",
+    navFreeze: "동결",
+    navCoal: "석탄",
+    navCity: "도시",
+    navTimeline: "타임라인",
+    navHive: "벌집",
+    navRoster: "명단",
+    navProfile: "프로필",
+    navVsDays: "VS 데이",
+    betaFeedbackPill: "🚧 베타 · 피드백",
+    fmpSeasonLoading: "시즌 —",
+    fmpThresholdLoading: "동결 임계값: — °C · — 분",
 
     // alert banner
     alertCalm: "전 멤버 안전",
