@@ -384,3 +384,24 @@ footer .related-tools a { margin: 0 6px; }
   table.freeze-grid th.hide-mobile,
   table.freeze-grid td.hide-mobile { display: none; }
 }
+
+/* mobile: keep freeze-grid horizontally scrollable inside its card
+   so it never blows out the viewport width. Also shrink UI chrome. */
+.card {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.card > .card-header { position: sticky; left: 0; }
+
+@media (max-width: 520px) {
+  body { padding: 0; }
+  .wrap { padding: 10px 8px; }
+  h1 { font-size: clamp(20px, 5.5vw, 28px); }
+  h2 { font-size: clamp(16px, 4.5vw, 22px); }
+  table.freeze-grid { font-size: 11px; min-width: 340px; }
+  table.freeze-grid th, table.freeze-grid td { padding: 5px 6px; }
+  .status-badge { min-width: 52px; font-size: 10px; padding: 2px 5px; }
+  .toolbar { flex-wrap: wrap; gap: 6px; }
+  .toolbar button, .toolbar select { font-size: 12px; padding: 5px 8px; }
+  .card-header { font-size: 11px; padding: 8px 10px; flex-wrap: wrap; gap: 4px; }
+}
