@@ -109,7 +109,7 @@
           <option value="name" data-i18n="sortName">Name</option>
         </select>
 
-        <button id="btnExportPng" data-i18n="toolExportPng">Export PNG (Discord)</button>
+        <button id="btnExportPng" data-i18n="toolExportPng">Export PNG (Discord)</button><span id="lws-discord-slot" style="display:inline-block;margin-left:6px"></span><span id="lws-discord-gear-slot" style="display:inline-block;margin-left:4px"></span>
         <button id="btnExportCsv" data-i18n="toolExportCsv">Export CSV</button>
         <button id="btnExportJson" data-i18n="toolExportJson">Export JSON</button>
       </div>
@@ -157,6 +157,7 @@
 
   <!-- i18n dictionary + language helpers ---------------------- -->
   <script src="static/fake-server.js"></script>
+<script src="static/lws-discord.js" defer></script>
     <script src="static/i18n.js"></script>
 
   <!-- Apply the LWS Access Codes gate. If lib.js failed to load
@@ -1190,5 +1191,6 @@
 
   <script src="static/seasons-lib.js" defer></script>
   <script src="https://chat.r5tools.io/widget.js" defer></script>
+<script>window.addEventListener("DOMContentLoaded",function(){if(window.LWSDiscord&&typeof LWSDiscord.attachToButton==="function"){setTimeout(function(){LWSDiscord.attachToButton({pngBtnId:"btnExportPng",slotId:"lws-discord-slot",gearSlotId:"lws-discord-gear-slot",filename:"freeze-risk.png",contextText:"Freeze Risk Snapshot",toolName:"Freeze-Risk Dashboard"});},300);}});</script>
 </body>
 </html>
