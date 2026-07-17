@@ -471,9 +471,14 @@
     // re-apply i18n in case action links or dynamic bits need it
     window.i18nApply(LANG);
 
-    // stats + timestamp
+    // stats + timestamp (i18n via dict)
+    const _dict = (window.I18N && window.I18N[LANG]) || {};
+    const _kMembers = _dict.statMembers || 'members';
+    const _kFrozen = _dict.statFrozen || 'frozen';
+    const _kImminent = _dict.statImminent || 'imminent';
+    const _kDanger = _dict.statDanger || 'danger';
     document.getElementById('cardHeaderStats').textContent =
-      `${rows.length} members · ${frozenCount} frozen · ${imminentCount} imminent · ${dangerCount} danger`;
+      `${rows.length} ${_kMembers} · ${frozenCount} ${_kFrozen} · ${imminentCount} ${_kImminent} · ${dangerCount} ${_kDanger}`;
     document.getElementById('cardHeaderTs').textContent = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
   }
 

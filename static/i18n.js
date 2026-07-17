@@ -34,6 +34,10 @@ window.I18N = {
     betaFeedbackPill: "🚧 BETA · Feedback",
     fmpSeasonLoading: "SEASON —",
     fmpThresholdLoading: "Freeze threshold: — °C for — min",
+    statMembers: "members",
+    statFrozen: "frozen",
+    statImminent: "imminent",
+    statDanger: "danger",
 
     // alert banner
     alertCalm: "All members safe",
@@ -213,6 +217,10 @@ window.I18N = {
     betaFeedbackPill: "🚧 베타 · 피드백",
     fmpSeasonLoading: "시즌 —",
     fmpThresholdLoading: "동결 임계값: — °C · — 분",
+    statMembers: "명",
+    statFrozen: "동결",
+    statImminent: "임박",
+    statDanger: "위험",
 
     // alert banner
     alertCalm: "전 멤버 안전",
