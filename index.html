@@ -7,6 +7,7 @@
   <meta name="description" content="Live per-member freeze-risk board for Last War: Survival Season 2 (Polar Storm). Which alliance member freezes in the next 5 minutes? Whose coal runs out before the next blizzard?" />
   <link rel="stylesheet" href="static/styles.css" />
   <script src="static/lws-countdown.js" defer></script>
+  <script defer src="static/lws-track.js"></script>
 </head>
 <body>
 <!-- suite-nav (part of R5TOOLS.IO) -->
@@ -34,7 +35,7 @@
        (local dev, no internet), the script tag fails and the gate
        degrades to open — expected behavior for local hacking.
        ============================================================ -->
-  <script src="https://access-codes.r5tools.io/lib.js"
+  <script src="https://access-codes.r5tools.io/lib.js?v=2"
           onerror="console.warn('LWS Access Codes lib unreachable — running in open mode. Add access-codes.r5tools.io CORS whitelist for prod.')"></script>
 
   <div id="main-app">
