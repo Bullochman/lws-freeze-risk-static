@@ -191,6 +191,35 @@ window.I18N = {
     footerRelCurse: "Curse Immunity Tracker",
     footerRelSafeTime: "Safe Time Scheduler",
     footerRelAltar: "Altar Conquest Planner",
+
+    // first-blizzard warning banner (7h-after-launch)
+    firstBlizzardBannerTitle: "First blizzard hits 7 hours after S2 launch",
+    firstBlizzardBannerBody: "Be inside furnace radius by then — Alliance Furnace L1 gives every member in range +3°C, enough to survive the -20°C W1 blizzard.",
+    firstBlizzardCountdownPreStart: "S2 launches in",
+    firstBlizzardCountdownThenBlizz: "first blizzard",
+    firstBlizzardCountdownLive: "First blizzard in",
+
+    // blizzard countdown panel
+    blizzardCountdownLabel: "Next blizzard",
+    blizzardCountdownIn: "in",
+    blizzardCountdownSeasonPre: "S2 launches in",
+    blizzardCountdownSeasonElapsed: "S2 has been running",
+    blizzardCountdownPeakPassed: "Wk 7 peak (-130°C) — passed",
+    blizzardCountdownPostSeason: "All scheduled cold waves have fired. Nuclear Furnace phase.",
+    blizzardCountdownNoDate: "Wk 4 Day 1 · -70°C (schedule only)",
+    blizzardCountdownNoDateHint: "No season start date confirmed for this warzone. Countdown unlocks once contributed.",
+    dayAbbr: "Day",
+
+    // freeze-risk projection chart
+    freezeProjectionLabel: "Freeze risk projection",
+    freezeProjectionHint: "Weekly % of members at freeze risk — current vs. Alliance Furnace L20",
+    freezeProjectionSeriesCurrent: "Current furnace + AF membership",
+    freezeProjectionSeriesBest: "Alliance Furnace L20 (all members)",
+    freezeProjectionYAxis: "% at freeze risk",
+    freezeProjectionXAxis: "Season week",
+    freezeProjectionEmpty: "No roster data",
+    freezeProjectionFootnotePre: "Upgrading your Alliance Furnace to L20 saves ",
+    freezeProjectionFootnotePost: "of the roster from Wk 7 peak freeze (-130°C).",
   },
 
   ko: {
@@ -374,6 +403,35 @@ window.I18N = {
     footerRelCurse: "저주 면역 트래커",
     footerRelSafeTime: "안전 시간 스케줄러",
     footerRelAltar: "제단 정복 플래너",
+
+    // first-blizzard warning banner (S2 시작 7시간 후 첫 블리자드)
+    firstBlizzardBannerTitle: "S2 시작 7시간 후 첫 블리자드 발생",
+    firstBlizzardBannerBody: "그 시점까지 화로 범위 안에 있어야 합니다 — 동맹 화로 L1은 범위 내 모든 멤버에게 +3°C를 제공하며, W1 블리자드 -20°C를 견디기에 충분합니다.",
+    firstBlizzardCountdownPreStart: "S2 시작까지",
+    firstBlizzardCountdownThenBlizz: "첫 블리자드",
+    firstBlizzardCountdownLive: "첫 블리자드까지",
+
+    // 블리자드 카운트다운 패널
+    blizzardCountdownLabel: "다음 블리자드",
+    blizzardCountdownIn: "남음",
+    blizzardCountdownSeasonPre: "S2 시작까지",
+    blizzardCountdownSeasonElapsed: "S2 경과 시간",
+    blizzardCountdownPeakPassed: "7주차 최정점 (-130°C) — 지남",
+    blizzardCountdownPostSeason: "예정된 모든 한파가 발생했습니다. 핵화로 단계입니다.",
+    blizzardCountdownNoDate: "4주차 1일 · -70°C (일정만)",
+    blizzardCountdownNoDateHint: "이 워존의 시즌 시작일이 확인되지 않았습니다. 데이터 기여 후 카운트다운이 활성화됩니다.",
+    dayAbbr: "일",
+
+    // 동결 위험 예측 차트
+    freezeProjectionLabel: "동결 위험 예측",
+    freezeProjectionHint: "주별 동결 위험 멤버 비율 — 현재 vs. 동맹 화로 L20",
+    freezeProjectionSeriesCurrent: "현재 화로 + 동맹화로 범위",
+    freezeProjectionSeriesBest: "동맹 화로 L20 (전 멤버)",
+    freezeProjectionYAxis: "동결 위험 %",
+    freezeProjectionXAxis: "시즌 주차",
+    freezeProjectionEmpty: "명단 데이터 없음",
+    freezeProjectionFootnotePre: "동맹 화로를 L20까지 업그레이드하면 7주차 최정점 동결(-130°C)에서 명단의 ",
+    freezeProjectionFootnotePost: "를 구할 수 있습니다.",
   },
 };
 

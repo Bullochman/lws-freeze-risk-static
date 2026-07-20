@@ -8,6 +8,16 @@
   <link rel="stylesheet" href="static/styles.css" />
   <script src="static/lws-countdown.js" defer></script>
   <script defer src="static/lws-track.js"></script>
+  <!-- Shared multi-line chart component from r5tools.io. Used by the
+       per-week freeze-risk projection panel below. Falls back gracefully
+       when unreachable (local dev / offline) — chart panel stays hidden. -->
+  <script defer src="https://r5tools.io/line-chart.js"
+          onerror="console.warn('LWSLineChart unreachable — freeze-risk projection chart will stay hidden.')"></script>
+  <!-- Shared roster-staleness widget from roster.r5tools.io. Mounted only
+       when the loaded roster has an alliance_signature (i.e. came from the
+       roster extractor's Live Roster picker). Falls back to no-op offline. -->
+  <script defer src="https://roster.r5tools.io/static/roster-freshness.js"
+          onerror="console.warn('RosterFreshness unreachable — staleness widget disabled.')"></script>
 </head>
 <body>
 <!-- suite-nav (part of R5TOOLS.IO) -->
@@ -70,6 +80,48 @@
           <span id="fmpWeek" style="color:#7a8290;font-size:11px">Wk —</span>
         </div>
         <div id="fmpBlizzardStrip" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"></div>
+      </div>
+
+      <!-- First-blizzard warning banner — shown when season_start_date is in
+           the future OR within the first 7 hours of S2 launch. KB: [[17-seasons-catalog]]
+           "first blizzard hits 7 hours after S2 launch". Owner's photographed
+           guide confirmed W1D1 blizzard. Populated by renderFirstBlizzardBanner(). -->
+      <div id="firstBlizzardBanner" style="background:linear-gradient(135deg,rgba(230,207,122,0.14),rgba(230,207,122,0.06));border:1px solid rgba(230,207,122,0.55);border-radius:8px;padding:14px 18px;margin:12px 0;display:none;color:#e6cf7a;font-family:system-ui,-apple-system,sans-serif">
+        <div style="display:flex;align-items:flex-start;gap:12px">
+          <div style="font-size:22px;line-height:1">⚠️</div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;margin-bottom:4px" id="firstBlizzardBannerTitle" data-i18n="firstBlizzardBannerTitle">First blizzard hits 7 hours after S2 launch</div>
+            <div style="font-size:12.5px;line-height:1.5;color:#e6e8ee" id="firstBlizzardBannerBody" data-i18n="firstBlizzardBannerBody">Be inside furnace radius by then — Alliance Furnace L1 gives every member in range +3°C, enough to survive the -20°C W1 blizzard.</div>
+            <div id="firstBlizzardBannerCountdown" style="font-size:12px;color:#c9a961;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;margin-top:6px;font-weight:600"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Blizzard / Cold Wave countdown panel — season-aware. Shows next
+           scheduled cold-wave event based on ctx.warzone.season_start_date.
+           KB: [[17-seasons-catalog]] Wk 4 -70°C, Wk 5 -90°C, Wk 6 -110°C,
+           Wk 7 -130°C. Populated by renderBlizzardCountdown(). -->
+      <div id="blizzardCountdownPanel" style="background:#0d1424;border:1px solid rgba(201,169,97,0.20);border-radius:8px;padding:12px 16px;margin:10px 0;display:none;font-family:system-ui,-apple-system,sans-serif">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px">
+          <span style="color:#c9a961;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase" data-i18n="blizzardCountdownLabel">Next blizzard</span>
+          <span id="bcpNextEvent" style="color:#e6e8ee;font-size:14px;font-weight:600;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">—</span>
+          <span style="flex:1"></span>
+          <span id="bcpTimeRemaining" style="color:#c9a961;font-size:14px;font-weight:600;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">—</span>
+        </div>
+        <div id="bcpStatusHint" style="color:#7a8290;font-size:11px;margin-top:4px"></div>
+      </div>
+
+      <!-- Per-week freeze-risk projection line chart. Multi-series:
+           A = current furnace levels     B = Alliance Furnace L20 (best case)
+           Renders via LWSLineChart.renderMulti (r5tools.io/line-chart.js).
+           Only shows when a roster is loaded and season has freeze mechanics. -->
+      <div id="freezeRiskProjection" style="background:#0d1424;border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:14px 16px 8px;margin:10px 0;display:none;font-family:system-ui,-apple-system,sans-serif">
+        <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:8px">
+          <span style="color:#c9a961;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase" data-i18n="freezeProjectionLabel">Freeze risk projection</span>
+          <span style="color:#7a8290;font-size:11px" data-i18n="freezeProjectionHint">Weekly % of members at freeze risk — current vs. Alliance Furnace L20</span>
+        </div>
+        <div id="freezeRiskChart" style="min-height:240px"></div>
+        <div id="freezeRiskChartFootnote" style="color:#7a8290;font-size:11px;margin-top:6px;line-height:1.5"></div>
       </div>
 
       <!-- rendered when the current season has no blizzard mechanics -->
@@ -480,6 +532,10 @@
     document.getElementById('cardHeaderStats').textContent =
       `${rows.length} ${_kMembers} · ${frozenCount} ${_kFrozen} · ${imminentCount} ${_kImminent} · ${dangerCount} ${_kDanger}`;
     document.getElementById('cardHeaderTs').textContent = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+
+    // Whenever the roster changes we also re-render the projection chart
+    // (adds/removes points as roster grows/shrinks).
+    if (typeof renderFreezeProjectionChart === 'function') renderFreezeProjectionChart();
   }
 
   function escapeHtml(s) {
@@ -749,6 +805,10 @@
     try { localStorage.setItem('lws_lang', LANG); } catch (e) { /* ignore */ }
     try { window.dispatchEvent(new CustomEvent('lws:lang-changed', { detail: { lang: LANG } })); } catch (e) { /* ignore */ }
     window.i18nApply(LANG);
+    // Refresh the season-aware panels so their text swaps into the new language.
+    if (typeof renderFirstBlizzardBanner === 'function') renderFirstBlizzardBanner();
+    if (typeof renderBlizzardCountdown === 'function') renderBlizzardCountdown();
+    if (typeof renderFreezeProjectionChart === 'function') renderFreezeProjectionChart();
     render();
   });
 
@@ -813,6 +873,24 @@
   window.i18nApply(LANG);
   render();
 
+  // If a previous session persisted an alliance signature, mount the roster
+  // freshness widget as soon as the script arrives. Retry once at +1500ms in
+  // case the external script is still loading.
+  function _tryMountFreshnessOnBoot() {
+    var sig = null;
+    try { sig = localStorage.getItem('lws_last_alliance_sig'); } catch (e) {}
+    if (sig) maybeMountRosterFreshness(sig);
+  }
+  setTimeout(_tryMountFreshnessOnBoot, 400);
+  setTimeout(_tryMountFreshnessOnBoot, 1800);
+
+  // Refresh the two live countdown panels once a minute so the "in Xd Yh" figures
+  // don't go stale while the tab is open all day.
+  setInterval(function () {
+    if (typeof renderFirstBlizzardBanner === 'function') renderFirstBlizzardBanner();
+    if (typeof renderBlizzardCountdown === 'function') renderBlizzardCountdown();
+  }, 60 * 1000);
+
   // Try to restore last-persisted roster on load
   fetch('/api/roster').then(r => r.json()).then(j => {
     if (Array.isArray(j.roster) && j.roster.length) {
@@ -831,6 +909,279 @@
   function severityColor(sev) {
     return { warning: '#e6cf7a', danger: '#e0a06a', critical: '#e08a8a' }[sev] || '#7a8290';
   }
+
+  // ---- Cold-wave / blizzard schedule --------------------------------------
+  //
+  // KB: [[17-seasons-catalog]] — Season 2 Cold Wave Alert absolute-temperature
+  // schedule (as verified against Evan's photographed guide, W1D1):
+  //   Wk 1 Day 1 — first blizzard 7h after S2 launch, ambient drops to -20°C
+  //   Wk 4 Day 1 — Cold Wave Alert, 7-day duration, min temp -70°C
+  //   Wk 5 Day 1 — Cold Wave Alert, 7-day duration, min temp -90°C
+  //   Wk 6 Day 1 — Cold Wave Alert, min temp -110°C
+  //   Wk 7 Day 1 — Cold Wave Alert, min temp -130°C (peak)
+  //
+  // The `blizzard_schedule` in seasons.json stores *drop* deltas, not absolute
+  // min temps — this table holds the absolute numbers the UI copy references.
+  const S2_COLD_WAVE_SCHEDULE = [
+    { week: 1, day: 1, hours_after_start: 7,      min_temp_c: -20,  label_key: 'coldWaveW1',  severity: 'warning'  },
+    { week: 4, day: 1, hours_after_start: 24 * 21, min_temp_c: -70, label_key: 'coldWaveW4',  severity: 'danger'   },
+    { week: 5, day: 1, hours_after_start: 24 * 28, min_temp_c: -90, label_key: 'coldWaveW5',  severity: 'critical' },
+    { week: 6, day: 1, hours_after_start: 24 * 35, min_temp_c: -110, label_key: 'coldWaveW6', severity: 'critical' },
+    { week: 7, day: 1, hours_after_start: 24 * 42, min_temp_c: -130, label_key: 'coldWaveW7', severity: 'critical' },
+  ];
+
+  function seasonStartDateMs() {
+    // Prefer the per-warzone season_start_date resolved by LWSSeasons; fall back
+    // to the season's declared start_date (seasons.json), then null.
+    var wz = window._LWS_LAST_CTX && window._LWS_LAST_CTX.warzone;
+    var seasonStart = (wz && wz.season_start_date)
+      || (window._LWS_LAST_CTX && window._LWS_LAST_CTX.season && window._LWS_LAST_CTX.season.start_date)
+      || null;
+    if (!seasonStart) return null;
+    // Interpret YYYY-MM-DD as midnight UTC — matches the seasons.json convention.
+    var t = Date.parse(seasonStart + 'T00:00:00Z');
+    return isNaN(t) ? null : t;
+  }
+
+  function fmtDuration(ms, lang) {
+    if (ms == null || !isFinite(ms)) return '—';
+    var sign = ms < 0 ? -1 : 1;
+    ms = Math.abs(ms);
+    var totalMin = Math.floor(ms / 60000);
+    var d = Math.floor(totalMin / 1440);
+    var h = Math.floor((totalMin % 1440) / 60);
+    var m = totalMin % 60;
+    var isKo = (lang === 'ko');
+    var parts = [];
+    if (d > 0) parts.push(d + (isKo ? '일' : 'd'));
+    if (h > 0 || d > 0) parts.push(h + (isKo ? '시' : 'h'));
+    if (d === 0) parts.push(m + (isKo ? '분' : 'm'));
+    var s = parts.join(' ');
+    return sign < 0 ? (isKo ? s + ' 지남' : s + ' ago') : s;
+  }
+
+  // ---- First-blizzard warning banner --------------------------------------
+  //
+  // KB: [[17-seasons-catalog]] — "first blizzard hits 7 hours after S2 launch."
+  // Show a yellow banner when:
+  //   (a) the warzone's season_start_date is in the future, OR
+  //   (b) we're within the first 7 hours of S2 (blizzard not yet triggered)
+  function renderFirstBlizzardBanner() {
+    var banner = document.getElementById('firstBlizzardBanner');
+    if (!banner) return;
+    if (SEASON_CFG.variantMode !== 'freeze' || !SEASON_CFG.hasFreezeMechanics) {
+      banner.style.display = 'none';
+      return;
+    }
+    var startMs = seasonStartDateMs();
+    if (!startMs) { banner.style.display = 'none'; return; }
+    var firstBlizzardMs = startMs + 7 * 3600 * 1000;
+    var now = Date.now();
+    var deltaToStart = startMs - now;
+    var deltaToBlizzard = firstBlizzardMs - now;
+    // Show if season hasn't started yet, or first blizzard is still coming.
+    if (deltaToBlizzard < 0) { banner.style.display = 'none'; return; }
+
+    var dict = (window.I18N && window.I18N[LANG]) || {};
+    banner.style.display = '';
+    var cd = document.getElementById('firstBlizzardBannerCountdown');
+    if (cd) {
+      if (deltaToStart > 0) {
+        cd.textContent = (dict.firstBlizzardCountdownPreStart || 'S2 launches in')
+          + ' ' + fmtDuration(deltaToStart, LANG)
+          + ' · ' + (dict.firstBlizzardCountdownThenBlizz || 'first blizzard') + ' '
+          + fmtDuration(deltaToBlizzard, LANG);
+      } else {
+        cd.textContent = (dict.firstBlizzardCountdownLive || 'First blizzard in')
+          + ' ' + fmtDuration(deltaToBlizzard, LANG);
+      }
+    }
+  }
+
+  // ---- Blizzard countdown panel --------------------------------------------
+  //
+  // Format: "Next blizzard: Wk 4 Day 1 · -70°C · in 12d 4h"
+  // Picks the next entry in S2_COLD_WAVE_SCHEDULE whose absolute timestamp is
+  // still in the future. If all are past (mid-Wk 8+), shows "peak passed".
+  function renderBlizzardCountdown() {
+    var panel = document.getElementById('blizzardCountdownPanel');
+    if (!panel) return;
+    if (SEASON_CFG.variantMode !== 'freeze' || !SEASON_CFG.hasFreezeMechanics) {
+      panel.style.display = 'none';
+      return;
+    }
+    var startMs = seasonStartDateMs();
+    var dict = (window.I18N && window.I18N[LANG]) || {};
+    var evEl = document.getElementById('bcpNextEvent');
+    var trEl = document.getElementById('bcpTimeRemaining');
+    var hintEl = document.getElementById('bcpStatusHint');
+
+    if (!startMs) {
+      // No confirmed start date — show the schedule schema without a countdown.
+      panel.style.display = '';
+      if (evEl) evEl.textContent = (dict.blizzardCountdownNoDate || 'Wk 4 Day 1 · -70°C (schedule only)');
+      if (trEl) trEl.textContent = '—';
+      if (hintEl) hintEl.textContent = dict.blizzardCountdownNoDateHint
+        || 'No season start date confirmed for this warzone. Countdown unlocks once contributed.';
+      return;
+    }
+
+    var now = Date.now();
+    var next = null;
+    for (var i = 0; i < S2_COLD_WAVE_SCHEDULE.length; i++) {
+      var ev = S2_COLD_WAVE_SCHEDULE[i];
+      var evMs = startMs + ev.hours_after_start * 3600 * 1000;
+      if (evMs > now) { next = { ev: ev, ms: evMs }; break; }
+    }
+    panel.style.display = '';
+    if (!next) {
+      if (evEl) evEl.textContent = dict.blizzardCountdownPeakPassed || 'Wk 7 peak (-130°C) — passed';
+      if (trEl) trEl.textContent = '—';
+      if (hintEl) hintEl.textContent = dict.blizzardCountdownPostSeason
+        || 'All scheduled cold waves have fired. Nuclear Furnace phase.';
+      return;
+    }
+    var ev = next.ev;
+    var labelPart = (dict.wkAbbr || 'Wk') + ' ' + ev.week + ' ' + (dict.dayAbbr || 'Day') + ' ' + ev.day;
+    var tempPart = ev.min_temp_c + '°C';
+    if (evEl) evEl.textContent = labelPart + ' · ' + tempPart;
+    if (trEl) trEl.textContent = (dict.blizzardCountdownIn || 'in') + ' ' + fmtDuration(next.ms - now, LANG);
+    if (hintEl) {
+      var startDelta = startMs - now;
+      if (startDelta > 0) {
+        hintEl.textContent = (dict.blizzardCountdownSeasonPre || 'S2 launches in')
+          + ' ' + fmtDuration(startDelta, LANG);
+      } else {
+        hintEl.textContent = (dict.blizzardCountdownSeasonElapsed || 'S2 has been running')
+          + ' ' + fmtDuration(-startDelta, LANG);
+      }
+    }
+  }
+
+  // ---- Per-week freeze-risk projection chart -------------------------------
+  //
+  // For each week 1..8, compute % of roster members whose predicted base temp
+  // would fall at or below freeze threshold (-20°C), given:
+  //   Series A: their *current* furnace level + membership in current AF radius
+  //   Series B: Alliance Furnace L20 (best-case) covering every member
+  //
+  // Ambient at their coord shifts per week per S2_COLD_WAVE_SCHEDULE (interpolated
+  // between events). Coal is assumed sufficient — this is a *heat coverage*
+  // projection, not a burn-rate one. Coal budgeting lives in the sibling tool.
+  function ambientForWeek(baseAmbient, week) {
+    // Baseline ambient (from coord) applies at Wk 1. Cold waves progressively
+    // lower it. We take the lowest active min_temp_c from the schedule for
+    // events whose `week` is <= current week.
+    var floor = baseAmbient;
+    for (var i = 0; i < S2_COLD_WAVE_SCHEDULE.length; i++) {
+      var ev = S2_COLD_WAVE_SCHEDULE[i];
+      if (week >= ev.week) floor = Math.min(floor, ev.min_temp_c);
+    }
+    return floor;
+  }
+
+  function memberBaseTempForWeek(m, week, afLevelOverride) {
+    var ambient = ambientForWeek(ambientFromCoord(m.coord_x, m.coord_y), week);
+    var hhf = hhfHeat(m.furnace_level, m.furnace_mode);
+    var afLvl = (typeof afLevelOverride === 'number') ? afLevelOverride : 20;
+    var af_contribution = (afLevelOverride === 20 || m.in_alliance_furnace_range)
+      ? afHeat(afLvl, 'normal')
+      : 0;
+    var city = m.city_heat_bonus || 0;
+    var research = m.research_bonus || 0;
+    return ambient + hhf + af_contribution + city + research;
+  }
+
+  function computeFreezeProjection() {
+    if (!ROSTER.length) return null;
+    var T = freezeThresholdC();
+    var weeks = [1, 2, 3, 4, 5, 6, 7, 8];
+    var currentSeries = [];
+    var bestSeries = [];
+    weeks.forEach(function (wk) {
+      var atRiskA = 0;
+      var atRiskB = 0;
+      ROSTER.forEach(function (m) {
+        var tempA = memberBaseTempForWeek(m, wk, null);
+        var tempB = memberBaseTempForWeek(m, wk, 20);
+        if (tempA <= T) atRiskA++;
+        if (tempB <= T) atRiskB++;
+      });
+      var n = ROSTER.length;
+      currentSeries.push({ x: 'Wk ' + wk, y: +(100 * atRiskA / n).toFixed(1) });
+      bestSeries.push({ x: 'Wk ' + wk, y: +(100 * atRiskB / n).toFixed(1) });
+    });
+    return { currentSeries: currentSeries, bestSeries: bestSeries };
+  }
+
+  function renderFreezeProjectionChart() {
+    var wrap = document.getElementById('freezeRiskProjection');
+    var mount = document.getElementById('freezeRiskChart');
+    var foot = document.getElementById('freezeRiskChartFootnote');
+    if (!wrap || !mount) return;
+    if (SEASON_CFG.variantMode !== 'freeze' || !SEASON_CFG.hasFreezeMechanics) {
+      wrap.style.display = 'none'; return;
+    }
+    if (!ROSTER.length) { wrap.style.display = 'none'; return; }
+    if (!window.LWSLineChart || typeof LWSLineChart.renderMulti !== 'function') {
+      // Chart component not loaded (offline). Silent no-op.
+      wrap.style.display = 'none'; return;
+    }
+    var proj = computeFreezeProjection();
+    if (!proj) { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+    var dict = (window.I18N && window.I18N[LANG]) || {};
+
+    window.LWSLineChart.renderMulti(mount, {
+      series: [
+        {
+          label: dict.freezeProjectionSeriesCurrent || 'Current furnace + AF membership',
+          color: '#e08a8a',
+          points: proj.currentSeries,
+        },
+        {
+          label: dict.freezeProjectionSeriesBest || 'Alliance Furnace L20 (all members)',
+          color: '#8ae0a3',
+          points: proj.bestSeries,
+        },
+      ],
+      labelY: dict.freezeProjectionYAxis || '% at freeze risk',
+      labelX: dict.freezeProjectionXAxis || 'Season week',
+      height: 260,
+      emptyMsg: dict.freezeProjectionEmpty || 'No roster data',
+    });
+
+    // Compute delta at Wk 7 peak — the tangible value of upgrading the furnace.
+    var peakA = proj.currentSeries[proj.currentSeries.length - 1].y;
+    var peakB = proj.bestSeries[proj.bestSeries.length - 1].y;
+    var saved = Math.max(0, peakA - peakB);
+    if (foot) {
+      foot.textContent =
+        (dict.freezeProjectionFootnotePre || 'Upgrading your Alliance Furnace to L20 saves ') +
+        saved.toFixed(1) + '% ' +
+        (dict.freezeProjectionFootnotePost || 'of the roster from Wk 7 peak freeze (-130°C).');
+    }
+  }
+
+  // ---- RosterFreshness widget mount ----------------------------------------
+  //
+  // The roster-freshness widget only makes sense when we have an alliance
+  // signature — i.e. the roster came from the Live Roster picker (roster
+  // extractor). Fires once per signature.
+  var _lastMountedSig = null;
+  function maybeMountRosterFreshness(sig) {
+    if (!sig || sig === _lastMountedSig) return;
+    if (!window.RosterFreshness || typeof RosterFreshness.mount !== 'function') return;
+    _lastMountedSig = sig;
+    try {
+      RosterFreshness.mount({
+        signature: sig,
+        apiBase: 'https://roster.r5tools.io',
+        lang: LANG,
+      });
+    } catch (e) { console.warn('[FreezeRisk] RosterFreshness mount failed:', e); }
+  }
+
 
   // Swap the header title/subtitle data-i18n keys for the current season,
   // then re-run i18nApply so the DOM text updates. Also rotates the footer
@@ -1135,9 +1486,15 @@
       SEASON_CFG.variantMode = 'freeze';
       applySeasonHeader(SEASON_CFG.seasonId);
       renderFreezeMechPanel(null, {});
+      renderFirstBlizzardBanner();
+      renderBlizzardCountdown();
+      renderFreezeProjectionChart();
       return;
     }
     LWSSeasons.resolve().then(function (ctx) {
+      // Stash the resolved context so downstream helpers (blizzard countdown,
+      // first-blizzard banner) can read warzone.season_start_date.
+      window._LWS_LAST_CTX = ctx;
       const cfg = (ctx.season && ctx.season.mechanics_config) || {};
       const sched = cfg.blizzard_schedule || null;
       SEASON_CFG.seasonId = ctx.season_id;
@@ -1158,6 +1515,9 @@
       }
       applySeasonHeader(ctx.season_id);
       renderFreezeMechPanel(ctx, cfg);
+      renderFirstBlizzardBanner();
+      renderBlizzardCountdown();
+      renderFreezeProjectionChart();
       render();
     }).catch(function (e) {
       console.warn('[LWS Freeze Risk] LWSSeasons.resolve failed, using S2 defaults:', e);
@@ -1165,6 +1525,9 @@
       SEASON_CFG.variantMode = 'freeze';
       applySeasonHeader(SEASON_CFG.seasonId);
       renderFreezeMechPanel(null, {});
+      renderFirstBlizzardBanner();
+      renderBlizzardCountdown();
+      renderFreezeProjectionChart();
       render();
     });
   }
@@ -1185,6 +1548,12 @@
     window.addEventListener('lws:roster-loaded', function (ev) {
       var rows = ev.detail.rows;
       if (!rows || !rows.length) return;
+      // Mount the roster-freshness staleness widget when the roster came from
+      // the Live Roster picker (i.e. carries alliance_signature). Silent no-op
+      // for CSV imports without a signature.
+      if (ev.detail.alliance_signature && typeof maybeMountRosterFreshness === 'function') {
+        maybeMountRosterFreshness(ev.detail.alliance_signature);
+      }
       var headers = Object.keys(rows[0]);
       var csv = headers.join(',') + '\n' +
         rows.map(function (r) { return headers.map(function (h) { return (r[h] || ''); }).join(',') }).join('\n');
